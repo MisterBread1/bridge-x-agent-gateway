@@ -4,11 +4,19 @@
 
 Bridge X translates provider responses into Chat Completions messages, validates proposed tool calls against the client's schemas, and records client execution receipts in SQLite. It connects clients such as ZCode to a configured upstream while keeping tool execution on the client.
 
-**Current version: 12.12.3-beta.1 · Status: beta · Python: 3.11+**
+## Demo
+
+![Bridge X Agent Workflow](docs/assets/bridge-x-demo.gif)
+
+*Animated architecture illustration of the verified tool workflow.*
+
+[Alternative: execution ledger](docs/assets/bridge-x-demo-ledger.gif) · [Demo scope and creation](docs/DEMO.md)
+
+**Current version: 12.12.3 · Status: stable for the verified local gateway workflow · Python: 3.11+**
 
 [Quick Start](#quick-start) · [Configuration](docs/CONFIGURATION.md) · [Architecture](docs/ARCHITECTURE.md) · [File guide](docs/FILE_GUIDE.md) · [Testing](docs/TESTING.md) · [Contributing](CONTRIBUTING.md)
 
-[Download beta releases](https://github.com/MisterBread1/bridge-x-agent-gateway/releases) · [Automated checks](https://github.com/MisterBread1/bridge-x-agent-gateway/actions)
+[Download releases](https://github.com/MisterBread1/bridge-x-agent-gateway/releases) · [Automated checks](https://github.com/MisterBread1/bridge-x-agent-gateway/actions)
 
 Use the offline simulator to check installation first. A successful local test does not establish live-provider availability or certify an installed client.
 
@@ -59,7 +67,7 @@ The **fake** provider is an offline protocol simulator; it requires no account o
 Invoke-RestMethod http://127.0.0.1:18787/health
 ```
 
-Expect `status: ok`, version `12.12.3-beta.1`, and provider `fake`. The Python CLI never installs software; `start.bat` runs the pinned requirements installer when its dependency import check fails. An existing environment that passes that check is reused without verifying every package version.
+Expect `status: ok`, version `12.12.3`, and provider `fake`. The Python CLI never installs software; `start.bat` runs the pinned requirements installer when its dependency import check fails. An existing environment that passes that check is reused without verifying every package version.
 
 ### Send a local API request
 
@@ -176,7 +184,7 @@ The Molab adapter is specific to its configured marimo runtime interface. Runtim
 
 ## Project Status
 
-Beta. See [release notes](RELEASE_NOTES.md), [historical release acceptance](docs/VALIDATION.md), and the [documentation review](docs/DOCUMENTATION_QA.md) for evidence and its limits. Security handling is described in [SECURITY.md](SECURITY.md).
+Stable release for the verified local gateway protocol on Windows/Python 3.13. This designation covers the documented HTTP/SSE, native event validation, client receipt coordination, and SQLite recovery checks; it does not certify current live Molab/ZCode availability, every external provider/platform, or long-running production workloads. See [release notes](RELEASE_NOTES.md), [historical acceptance](docs/VALIDATION.md), and [stable release validation](docs/STABLE_RELEASE.md). Security handling is described in [SECURITY.md](SECURITY.md).
 
 ## Project Structure
 
@@ -204,7 +212,8 @@ Keep the listener on loopback, use a unique local key, and retain client-side to
 | [File guide](docs/FILE_GUIDE.md) | What does each tracked file do, and should I edit it? |
 | [Development](docs/DEVELOPMENT.md) | How do I extend an adapter or debug safely? |
 | [Testing](docs/TESTING.md) | Which commands are offline, and what do they prove? |
-| [Release notes](RELEASE_NOTES.md) | What is included in this beta and what remains unverified? |
+| [Release notes](RELEASE_NOTES.md) | What is included in this release and what remains unverified? |
+| [Community setup](docs/COMMUNITY_SETUP.md) | How are Issues organized, and which settings need the owner? |
 | [Repository presentation](docs/GITHUB.md) | What description, topics, and demo placement suit this repository? |
 
 ## Changelog

@@ -1,4 +1,4 @@
-name: Validate and publish beta release
+name: Validate and publish release
 
 on:
   push:
@@ -22,6 +22,7 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: write
+      issues: write
     env:
       PYTHONDONTWRITEBYTECODE: '1'
       PYTHONUTF8: '1'
@@ -38,6 +39,7 @@ jobs:
           cache-dependency-path: requirements*.txt
       - run: python -m pip install -r requirements-dev.txt
       - run: python -m pip check
+      - run: python -m compileall -q bridge_x bridge_x_test_runner tests tools
       - run: python -m pytest -q -ra
       - run: python LOCAL_HTTP_ACCEPTANCE.py
       - run: python -m tools.native_css_acceptance
@@ -49,7 +51,33 @@ jobs:
           $version = python -c "from bridge_x import __version__; print(__version__)"
           python -m tools.audit_release "artifacts/bridge-x-$version-complete.zip"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Publish immutable versioned prerelease
+      - name: Verify ZIP in a new Python environment
+        shell: pwsh
+        run: |
+          $version = python -c "from bridge_x import __version__; print(__version__)"
+          python -m tools.verify_release "artifacts/bridge-x-$version-complete.zip" --work-dir "$env:RUNNER_TEMP/bridge-x-zip-verification"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Ensure community labels without changing existing labels
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          $existing = gh label list --limit 100 --json name | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $labels = @(
+            @{name='bug'; color='d73a4a'; description='A reproducible problem'},
+            @{name='enhancement'; color='a2eeef'; description='A feature or improvement'},
+            @{name='documentation'; color='0075ca'; description='Documentation improvements'},
+            @{name='question'; color='d876e3'; description='A question requiring clarification'}
+          )
+          foreach ($label in $labels) {
+            if ($existing.name -notcontains $label.name) {
+              gh label create $label.name --color $label.color --description $label.description
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            }
+          }
+      - name: Publish immutable versioned release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -63,5 +91,8 @@ jobs:
             Write-Output "Release already exists; published assets were not changed."
             exit 0
           }
-          gh release create $tag "artifacts/bridge-x-$version-complete.zip" "artifacts/SHA256SUMS.txt" --target $env:RELEASE_COMMIT --title "Bridge X $version" --notes-file RELEASE_NOTES.md --prerelease
+          $title = if ($version -eq '12.12.3') { "Bridge X v$version — First Stable Release" } else { "Bridge X v$version" }
+          $releaseArgs = @('release', 'create', $tag, "artifacts/bridge-x-$version-complete.zip", 'artifacts/SHA256SUMS.txt', '--target', $env:RELEASE_COMMIT, '--title', $title, '--notes-file', 'RELEASE_NOTES.md')
+          if ($version.Contains('-')) { $releaseArgs += @('--prerelease', '--latest=false') } else { $releaseArgs += '--latest' }
+          gh @releaseArgs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

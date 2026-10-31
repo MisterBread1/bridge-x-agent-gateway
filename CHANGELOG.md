@@ -2,6 +2,15 @@
 
 This is a reconstructed history from the existing project changelog, regression reports, and public-release acceptance notes. It is not a claim of newly rerun historical tests or a complete release-by-release Git history. Earlier private reports are summarized here without publishing their transcripts, runtime identifiers, or local filesystem paths.
 
+## 12.12.3 — First stable release
+
+- Promotes the documented local gateway workflow to stable scope: HTTP/SSE boundaries, native input validation, client-owned tool execution, receipts, and SQLite recovery. Current live-provider availability, every platform/client, and prolonged production load remain outside certification.
+- Application metadata reports `12.12.3`; the older beta tag/release and its assets remain unchanged.
+- Adds structured bug/feature issue forms, safe community instructions, and missing-label setup. Administrative Topics/Discussions/branch protection remain owner actions where the integration lacks permission.
+- Adds two reviewed, explicitly labeled animated architecture demos and optional media-only authoring tooling. No gateway runtime dependency or tool-execution behavior is changed for media.
+- The publisher verifies the complete ZIP in a new Python environment before publishing an immutable stable release with Latest; prerelease versions retain prerelease semantics. New verification tests reject unsafe archive paths and incomplete manifests.
+- Current stable evidence is recorded in [docs/STABLE_RELEASE.md](docs/STABLE_RELEASE.md). Historical beta counts below remain attributed to their original runs.
+
 ## Unreleased — Repository documentation
 
 - Publication follow-up merges the documentation into main and adds offline Windows/Python 3.13 CI plus a validated, immutable beta publisher.

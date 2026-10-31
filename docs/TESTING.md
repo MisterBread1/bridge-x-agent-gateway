@@ -1,6 +1,6 @@
 # Testing
 
-[README](../README.md) · [Development](DEVELOPMENT.md) · [File guide](FILE_GUIDE.md) · [Documentation review](DOCUMENTATION_QA.md)
+[README](../README.md) В· [Development](DEVELOPMENT.md) В· [File guide](FILE_GUIDE.md) В· [Documentation review](DOCUMENTATION_QA.md)
 
 The default suite is **offline with simulated providers**. Some tests run actual local HTTP servers and execute Python or file operations in temporary directories. They do not contact a live Molab runtime or operate an installed ZCode client. Test filenames containing `molab`, `integration`, or `live` do not change that distinction.
 
@@ -62,7 +62,7 @@ Run the relevant group during implementation, then the full suite before publish
 
 The HTTP helper allocates a free loopback port, starts its own fake-provider Uvicorn process with a temporary journal, checks version/auth/models/SSE, shuts down through a private parent pipe, and reopens SQLite. It writes `local_http_acceptance_result.json`, which is ignored. `test_agent_recovery.py` also invokes this helper twice to catch Windows file-lock cleanup regressions. These checks do not use the user's listener on 8787.
 
-The CSS acceptance script mocks native Molab HTTP events but uses a real temporary Unicode/space directory and real client-side Read → Edit → Read → Python-check actions. It checks exact CSS-only bytes, the unchanged neighbor, CRLF, exit status, and four returned receipts across five upstream fixture requests. Its `Bash` label represents a client tool; the fixture invokes a fixed Python checker without running arbitrary shell text. The gateway never executes it.
+The CSS acceptance script mocks native Molab HTTP events but uses a real temporary Unicode/space directory and real client-side Read в†’ Edit в†’ Read в†’ Python-check actions. It checks exact CSS-only bytes, the unchanged neighbor, CRLF, exit status, and four returned receipts across five upstream fixture requests. Its `Bash` label represents a client tool; the fixture invokes a fixed Python checker without running arbitrary shell text. The gateway never executes it.
 
 ## Windows checks
 
@@ -87,3 +87,7 @@ Run live checks only with explicit authorization for the current runtime, select
 [VALIDATION.md](VALIDATION.md) preserves the previous clean public-release report: **468 passed, 1 skipped** on Windows/Python 3.13.13, with HTTP and scripted CSS acceptance. [DOCUMENTATION_QA.md](DOCUMENTATION_QA.md) records the commands actually run during this repository polish. Historical installed-ZCode observations are summarized separately in [CHANGELOG.md](../CHANGELOG.md); they do not certify current upstream behavior.
 
 The existing Starlette/httpx test-client deprecation warning should remain visible. Do not remove a test, suppress warnings, or convert a failure to a skip just to obtain a clean headline.
+
+## Stable publication gate
+
+`python -m tools.verify_release <complete.zip> --work-dir <temporary-directory>` validates exact archive checksum coverage and installs a fresh Python environment from that extracted ZIP, then runs pip check, compileall, full pytest, HTTP smoke, native CSS acceptance, and syntax-only fake startup. It downloads test dependencies and never contacts a live model. The release workflow requires this gate before publication. `test_release_verification.py` tests traversal/wrong-root rejection, missing manifest coverage, and the named-media audit boundary.

@@ -1,0 +1,40 @@
+name: Feature request
+description: Propose an improvement with a concrete use case and compatibility scope.
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: Describe the user problem without posting credentials, private runtime addresses, or transcripts.
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Problem or use case
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+  - type: textarea
+    id: benefits
+    attributes:
+      label: Expected benefits
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives
+      description: Existing workflows or other approaches you considered.
+    validations:
+      required: true
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: Compatibility considerations
+      description: Consider client schemas, native/compatibility modes, SSE, receipt recovery, and supported environments.
+    validations:
+      required: true

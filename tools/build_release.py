@@ -13,7 +13,8 @@ def release_members(root):
     names = ['README.md', 'CONTRIBUTING.md', 'CHANGELOG.md', 'RELEASE_NOTES.md',
              'SECURITY.md', '.gitignore', 'requirements.txt', 'requirements-dev.txt',
              'pytest.ini', 'LOCAL_HTTP_ACCEPTANCE.py', 'LIVE_CHECK.py', 'start.bat',
-             'examples/.molab_local.example.json']
+             'examples/.molab_local.example.json', 'tools/requirements-media.txt',
+             'docs/assets/bridge-x-demo.gif', 'docs/assets/bridge-x-demo-ledger.gif']
     for directory, suffixes in [('bridge_x', ('.py',)), ('bridge_x_test_runner', ('.py',)),
                                 ('tests', ('.py',)), ('tools', ('.py',)),
                                 ('docs', ('.md',)), ('.github', ('.md', '.yml', '.yaml'))]:

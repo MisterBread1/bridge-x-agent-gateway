@@ -1,33 +1,58 @@
-# Bridge X 12.12.3-beta.1
+# Bridge X v12.12.3 — First Stable Release
 
-This is a separate public distribution prepared from the existing working source. It keeps the native agent architecture and all source tests. No original local credentials, user database, transcripts, or server processes are part of the distribution.
+## Overview
 
-## Included behavior
+Bridge X is a local OpenAI-compatible AI agent gateway. It translates provider events, validates tool proposals against client schemas, and coordinates execution receipts in SQLite. Tools run in the client, not in the gateway.
 
-- OpenAI-compatible streaming/non-streaming chat and validated native frontend calls.
-- Tool result reconciliation, independent execution scopes, and persistent operation states.
-- Shared pacing and cooldown state; bounded pre-output rate recovery with a single total deadline.
-- Correct distinction between expired runtimes, access errors, unreadable native mode, and notebook code mode.
-- A loopback CLI with `--port` and offline `--check-config`, non-overwriting example setup, pinned dependencies, and an offline native CSS acceptance utility.
+This first stable release covers the verified local gateway workflow on Windows/Python 3.13. It does not certify current live-provider availability, every installed client, every operating system, or production workloads of arbitrary duration. The previous beta release is retained unchanged.
 
-## Publication changes
+## Highlights
 
-The public copy removes accumulated launchers and historical private-workspace artifacts from its file selection. Existing parser compatibility code remains. Two root Python helpers remain because regression tests depend on them. Developer home paths in synthetic tests are replaced with generic fixture paths. The working source tree is preserved.
+- Streaming and non-streaming Chat Completions with authenticated local endpoints.
+- Native frontend tool inputs validated before client delivery.
+- Sequential client workflows and separate foreground/background execution scopes.
+- Durable receipts, duplicate-dispatch protection, and SQLite restart recovery.
+- Bounded pre-output rate recovery, truthful terminal SSE errors, and sanitized diagnostics.
+- Complete English documentation, structured issue forms, and two clearly labeled architecture GIFs.
 
-One optional Windows `start.bat` is included as a shortcut to the Python CLI, with initial environment/dependency setup, argument forwarding, and preserved exit codes. It does not overwrite local configuration or stop another server.
+## Native tool calling
 
-## Historical public-release validation
+Native start/delta/available events must form complete, consistent arguments and pass the declared JSON Schema. The client applies its permissions, executes the tool, and returns the actual result with the gateway's local call ID. A proposal or dispatch is never evidence of execution. Compatibility parsers remain available without becoming the default native path.
 
-The earlier public-release report records a clean extracted installation on Windows 11 / Python 3.13.13: **468 tests passed, 1 skipped, 0 failures, 0 errors**. The skip is the existing platform-permission symlink test. A Starlette/httpx test-client deprecation warning remains visible. Runtime and test installation, `pip check`, compilation, real loopback HTTP/SSE, graceful shutdown/reopen, and scripted native CSS acceptance passed in that preparation. See [the preserved validation summary](docs/VALIDATION.md) for scope. These are historical observations, not new executions during documentation work.
+## SSE support
 
-An initial clean run found a temporary SQLite connection left open by the strengthened HTTP acceptance helper. The release copy now closes that diagnostic connection explicitly; both affected tests pass unchanged. The original working project was not modified. Historical private-workspace counts are not used as current acceptance.
+Strict incremental UTF-8 framing, bounded input, heartbeat comments, cancellation, and late-error handling are checked. An SSE error after HTTP 200 does not receive a fabricated successful DONE marker. Executable arguments stay buffered until safe terminal and schema validation.
 
-## Known limits
+## SQLite state recovery
 
-Beta; Windows/Python 3.13 is the local acceptance platform. Upstream availability and quotas remain external. The local native CSS test executes real file operations and a terminal command against scripted upstream events; it is not an installed-ZCode or live-Molab certification. The public preparation does not contact the author's Molab session. See `SECURITY.md` for the scan scope and safe handling of local state.
+The journal records operation transitions, receipt provenance, request fingerprints, scopes, and cooldown metadata. Original transcript call/result pairs are reconciled before context compaction. Unknown effects are not silently rerun. Verification compares digests supplied by the authenticated client; it does not independently inspect the client's filesystem.
 
-## Repository documentation update
+## Installation
 
-The repository exposes the original ZIP's source, tests, example, launchers, and tooling alongside expanded English documentation. Gateway runtime, original tests, configuration template, dependency pins, and launcher remain unchanged. A later publication-tooling update makes the complete ZIP include contribution/workflow files, uses a stable versioned root and fixed timestamps, and refuses overwriting different outputs. Four new packaging regressions cover the update. The old binary was subsequently removed from main and is not restored; downloads belong in GitHub Releases. Checkout, historical ZIP, and complete release asset each have their own checksum scope.
+Extract `bridge-x-12.12.3-complete.zip`, open its project directory, then run in PowerShell:
 
-Use the [README](README.md) to start, the [file guide](docs/FILE_GUIDE.md) to explore, and [documentation QA](docs/DOCUMENTATION_QA.md) for the earlier documentation checks. The beta publisher validates main before creating `v12.12.3-beta.1` with `bridge-x-12.12.3-beta.1-complete.zip` and `SHA256SUMS.txt`. Existing versions are never silently replaced. Actual Actions/release status must be checked on GitHub.
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m bridge_x --provider fake --port 18787
+```
+
+The fake provider is an offline simulator. Follow the README to create your own local runtime configuration and unique gateway key before using a real upstream. `start.bat` remains the optional Windows shortcut.
+
+## Verification results
+
+Publication is gated on a full source regression run and a **new Python environment from the extracted final ZIP**: dependency install, pip check, compileall, full pytest, HTTP/SSE smoke, native CSS/file/Python acceptance, and syntax-only fake startup. Schema, SQLite recovery, explicit 429 handling, receipt ownership, and stream failure cases are included in pytest. Final ZIP/file SHA-256 and offline secret scanning are checked. Exact observations and limitations are in [stable verification](docs/STABLE_RELEASE.md) and the matching GitHub Actions run; historical beta counts are not used as new stable results.
+
+The local clean extracted candidate passed **478 tests**, with one Windows symlink-permission skip and one existing Starlette/httpx warning; all seven clean-environment gate commands succeeded. Hosted PR/main and final-ZIP checks run independently before publication. The independent CSS scenario uses scripted upstream events with genuine temporary client file operations and Python execution. No live Molab or installed-ZCode run is claimed for this release acceptance.
+
+## Known limitations
+
+Beta history is preserved, while stable scope is deliberately limited to tested functions. Provider quotas, runtime expiration, interface changes, process-local pacing, client permissions, and external connectivity remain constraints. Windows symlink permissions may cause the existing test to skip locally; the Starlette/httpx test-client warning remains visible. Other environments and sustained production loads are not universally certified.
+
+## Download
+
+The stable GitHub Release attaches `bridge-x-12.12.3-complete.zip` and `SHA256SUMS.txt`. The archive contains an independent per-file checksum manifest, source, tests, documentation, both GIFs, community configuration, and placeholder-only examples. It excludes credentials, local databases, logs, caches, environments, and older nested ZIPs.
+
+## Documentation
+
+Start with [README](README.md), then [configuration](docs/CONFIGURATION.md), [architecture](docs/ARCHITECTURE.md), [file guide](docs/FILE_GUIDE.md), [development](docs/DEVELOPMENT.md), [testing](docs/TESTING.md), and [community administration](docs/COMMUNITY_SETUP.md).

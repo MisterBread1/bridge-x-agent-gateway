@@ -2,13 +2,17 @@
 
 [README](../README.md) · [Architecture](ARCHITECTURE.md) · [Development](DEVELOPMENT.md) · [Testing](TESTING.md)
 
-This inventory covers **all 86 tracked files in the documentation branch**, including hidden configuration and GitHub workflows. It excludes ignored/private/generated working state. Every Python file was inspected; symbols/imports below reflect its implementation, including lazy imports. Empty package markers are listed explicitly.
+This inventory covers **all 98 tracked files in the documentation branch**, including hidden configuration and GitHub workflows. It excludes ignored/private/generated working state. Every Python file was inspected; symbols/imports below reflect its implementation, including lazy imports. Empty package markers are listed explicitly.
 
 ## Complete tracked tree
 
 ```text
 bridge-x-agent-gateway/
 ├── .github/
+│   ├── ISSUE_TEMPLATE/
+│   │   ├── bug_report.yml
+│   │   ├── config.yml
+│   │   └── feature_request.yml
 │   ├── PULL_REQUEST_TEMPLATE.md
 │   └── workflows/
 │       ├── ci.yml
@@ -52,14 +56,20 @@ bridge-x-agent-gateway/
 │   └── runner.py
 ├── docs/
 │   ├── ARCHITECTURE.md
+│   ├── COMMUNITY_SETUP.md
 │   ├── CONFIGURATION.md
 │   ├── CONTENTS_AUDIT.md
+│   ├── DEMO.md
 │   ├── DEVELOPMENT.md
 │   ├── DOCUMENTATION_QA.md
 │   ├── FILE_GUIDE.md
 │   ├── GITHUB.md
+│   ├── STABLE_RELEASE.md
 │   ├── TESTING.md
-│   └── VALIDATION.md
+│   ├── VALIDATION.md
+│   └── assets/
+│       ├── bridge-x-demo-ledger.gif
+│       └── bridge-x-demo.gif
 ├── examples/
 │   └── .molab_local.example.json
 ├── pytest.ini
@@ -91,6 +101,7 @@ bridge-x-agent-gateway/
 │   ├── test_regression_129.py
 │   ├── test_release_cli.py
 │   ├── test_release_packaging.py
+│   ├── test_release_verification.py
 │   ├── test_sandbox_runner.py
 │   ├── test_schema125.py
 │   ├── test_sse.py
@@ -101,7 +112,10 @@ bridge-x-agent-gateway/
     ├── audit_release.py
     ├── build_release.py
     ├── configure.py
-    └── native_css_acceptance.py
+    ├── native_css_acceptance.py
+    ├── render_demo.py
+    ├── requirements-media.txt
+    └── verify_release.py
 ```
 
 ## Runtime code
@@ -354,6 +368,7 @@ Category: **tests** for every row below. Ordinary users do **not** edit these fo
 
 | Exact path | Responsibility / verified behavior | Internal relationships |
 |---|---|---|
+| [`tests/test_release_verification.py`](../tests/test_release_verification.py) | Verifies exact ZIP manifest coverage, rejects traversal/wrong roots and unlisted members, and checks the explicitly approved GIF boundary in the publication scanner. | `bridge_x`, `tools.audit_release`, `tools.verify_release` |
 | [`tests/test_release_packaging.py`](../tests/test_release_packaging.py) | Complete archive membership and stable versioned prefix, internal checksums, repeatable bytes, unchanged checkout manifest, immutable existing outputs, and exclusion of private/unlisted root files; exercises tools.build_release. | `bridge_x`, `tools.build_release` |
 | [`tests/__init__.py`](../tests/__init__.py) | Empty package marker enabling relative imports between regression modules. | Package marker used by relative test imports |
 | [`tests/conftest.py`](../tests/conftest.py) | Shared synthetic Write/Bash schemas plus `tools` and `request_factory` pytest fixtures; downstream modules import these declarations. | `bridge_x.schemas` |
@@ -387,6 +402,24 @@ Category: **tests** for every row below. Ordinary users do **not** edit these fo
 ## Test support and manual tooling
 
 Ordinary users run documented entry points; they do **not** edit these files for normal setup. Maintainers extend them with targeted checks. `main()` symbols are command entry points, not automatic startup actions.
+
+### `tools/render_demo.py`
+
+[Open source](../tools/render_demo.py) · Category: Optional media authoring · User edit: **No**.
+
+Renders two explicitly labeled architecture GIFs using Pillow, Segoe UI/DejaVu, a shared palette, smooth message motion, tool highlights, and a loop crossfade. Asserts text bounds, duration, dimensions, motion, and size. Developer-only; never imported by the gateway or normal tests.
+
+**Public symbols:** `font`, `text`, `rounded`, `pill`, `ease`, `particle`, `background`, `stage_for`, `lanes`, `ledger`, `palette`, `render`, `main`.
+
+### `tools/verify_release.py`
+
+[Open source](../tools/verify_release.py) · Category: Release verification tooling · User edit: **No**.
+
+verify_members() checks safe paths, exact manifest coverage and hashes; main() extracts into its own temporary directory, creates a fresh venv, installs pinned test dependencies, and runs pip check, compileall, full pytest, HTTP/CSS acceptance, and fake syntax startup. No live model calls.
+
+**Public symbols:** `verify_members`, `main`.
+
+**Internal relationships:** `bridge_x`.
 
 ### `bridge_x_test_runner/__init__.py`
 
@@ -428,7 +461,7 @@ Package marker for `python -m tools...` helpers. No gateway startup side effect.
 
 [Open source](../tools/build_release.py) · Category: Tooling · User edit: **No**.
 
-`release_members()` selects complete source/docs/CONTRIBUTING and GitHub configuration, rejecting symlink/escaped inputs and generating an archive-only SHA-256 manifest. `build_release()` uses a stable versioned prefix and timestamps, writes a complete ZIP and checksum to artifacts or an explicit directory, and refuses different existing outputs. `main()` exposes --output-dir. The checkout manifest and original ZIP remain unchanged.
+`release_members()` selects complete source/docs/CONTRIBUTING, reviewed GIFs, optional media requirements, and GitHub configuration, rejecting symlink/escaped inputs and generating an archive-only SHA-256 manifest. `build_release()` uses a stable versioned prefix and timestamps, writes a complete ZIP and checksum to artifacts or an explicit directory, and refuses different existing outputs. `main()` exposes --output-dir. The checkout manifest and original ZIP remain unchanged.
 
 **Public symbols:** `release_members`, `build_release`, `main`.
 
@@ -468,8 +501,17 @@ Package marker for `python -m tools...` helpers. No gateway startup side effect.
 
 | Exact path | Category and responsibility | Relationship / questions answered | Should an ordinary user edit it? |
 |---|---|---|---|
+| [`.github/ISSUE_TEMPLATE/bug_report.yml`](../.github/ISSUE_TEMPLATE/bug_report.yml) | **GitHub Issue Form.** Required version/Python/OS, provider/transport/environment, behavior, reproduction, sanitized code, and privacy confirmations for bugs. | GitHub issue chooser; uses bug label and requests no private credentials or journals. | Reporters fill the displayed form; maintainers edit its schema. |
+| [`.github/ISSUE_TEMPLATE/feature_request.yml`](../.github/ISSUE_TEMPLATE/feature_request.yml) | **GitHub Issue Form.** Collects problem/use case, proposed solution, benefits, alternatives, and compatibility. | GitHub issue chooser; uses enhancement label. | Reporters fill the displayed form; maintainers edit it. |
+| [`.github/ISSUE_TEMPLATE/config.yml`](../.github/ISSUE_TEMPLATE/config.yml) | **GitHub configuration.** Disables unstructured blank issues and links setup documentation while Discussions is not enabled. | Keeps question routing truthful; no inactive Discussions URL. | Maintainers update after administrative setup. |
+| [`docs/assets/bridge-x-demo.gif`](../docs/assets/bridge-x-demo.gif) | **Reviewed media.** Protocol-lanes architecture illustration with Provider, Bridge X, ZCode, native tools and receipts; 1100 by 680, smooth 14.4-second loop. | Default README demo; generated by tools/render_demo.py from verified fixture behavior, not a screen recording. | Users view it; maintainers regenerate and visually review. |
+| [`docs/assets/bridge-x-demo-ledger.gif`](../docs/assets/bridge-x-demo-ledger.gif) | **Reviewed media.** Alternative execution-ledger architecture animation emphasizing tool receipt states. | Linked alternative in README and DEMO; same honest simulated-provider scope. | Users view it; maintainers regenerate and visually review. |
+| [`tools/requirements-media.txt`](../tools/requirements-media.txt) | **Optional authoring dependency.** Pins Pillow 13.0.0 only for creating GIFs. | Not included by runtime or test requirement files; used by render_demo. | Media authors install separately; ordinary users do not need it. |
+| [`docs/DEMO.md`](../docs/DEMO.md) | **Documentation / media.** Shows both GIF options, explains illustration provenance, technical metadata, and optional recreation commands. | Links real fixture acceptance and architecture; no live screen recording claim. | Users view; media authors follow its commands. |
+| [`docs/STABLE_RELEASE.md`](../docs/STABLE_RELEASE.md) | **Documentation / release evidence.** Defines stable scope, source baseline, clean-ZIP acceptance, media QA, secret scope and administrative limitations. | Separates stable verification from historical beta evidence. | Reviewers read; maintainers record observed results. |
+| [`docs/COMMUNITY_SETUP.md`](../docs/COMMUNITY_SETUP.md) | **Documentation / owner setup.** Explains issue forms, labels, exact Topics/Discussions/main-protection steps, and an English welcome-discussion draft. | Explicitly distinguishes implemented source from administrative changes unavailable to the integration. | Owner applies only the documented missing settings; users read community guidance. |
 | [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) | **GitHub Actions configuration.** Runs the full offline Windows/Python 3.13 suite, dependency consistency, temporary HTTP/SSE and CSS acceptance, then builds/audits the complete ZIP on main pushes and PRs. | Read-only repository token; no live-provider configuration. | Maintainers edit the workflow; users do not need it for local startup. |
-| [`.github/workflows/release.yml`](../.github/workflows/release.yml) | **GitHub Actions configuration.** Validates main before publishing a versioned beta release and complete ZIP/checksum via the existing ephemeral GitHub token. Runs on version/publisher changes or manual dispatch; never replaces an existing release. | Contents-write permission is limited to the release job; no persistent token is created. | Maintainers edit for release automation; users download verified assets. |
+| [`.github/workflows/release.yml`](../.github/workflows/release.yml) | **GitHub Actions configuration.** Validates source and a fresh extracted-ZIP environment before publishing an immutable release/checksum against the tested main SHA. Stable versions get Latest, prerelease versions stay prereleases; it also creates only missing community labels. | Contents-write and issues-write are limited to the trusted-main release job for assets and labels; no persistent token is created. | Maintainers edit for release automation; users download verified assets. |
 | [`.gitignore`](../.gitignore) | **Configuration.** Excludes environments, bytecode/test caches, private local configuration/environment values, SQLite/database sidecars, logs, dumps, acceptance output, and coverage artifacts. | Git publication hygiene; never a substitute for staged-diff review. | Maintainers only when generated/private file categories change. |
 | [`.github/PULL_REQUEST_TEMPLATE.md`](../.github/PULL_REQUEST_TEMPLATE.md) | **Documentation / GitHub.** Prompts a PR author for the concrete problem, resulting behavior, executed checks, evidence limits, and private-data exclusion. | Used by GitHub when opening pull requests; links conceptually to contribution and file guides. | Contributors fill its sections in a PR; maintainers edit the template. |
 | [`requirements.txt`](../requirements.txt) | **Configuration / dependencies.** Pins the 22-distribution runtime dependency closure, including FastAPI/Uvicorn, httpx, Pydantic, JSON Schema, and transitive requirements. | Consumed by manual setup, start.bat when dependencies are missing, and requirements-dev.txt. | Users install it; maintainers update pins with compatibility checks. |

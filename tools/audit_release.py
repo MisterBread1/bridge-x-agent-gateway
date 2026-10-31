@@ -5,6 +5,8 @@ from pathlib import Path
 import re
 from zipfile import ZipFile
 
+APPROVED_MEDIA = {'docs/assets/bridge-x-demo.gif', 'docs/assets/bridge-x-demo-ledger.gif'}
+
 
 def scan(members):
     findings = []
@@ -13,6 +15,13 @@ def scan(members):
         forbidden = {'.git', '.venv', 'venv', '__pycache__', '.pytest_cache', '.hypothesis', '.audit-tmp'}
         if forbidden.intersection(parts) or Path(name).name in {'.molab_local.json', '.env'} or name.endswith(('.sqlite3', '.sqlite3-wal', '.sqlite3-shm', '.pyc', '.log', '.dmp')):
             findings.append({'file': name, 'kind': 'private_or_generated_file'})
+        relative = name.replace('\\', '/')
+        if relative.startswith('bridge-x-') and '/' in relative:
+            relative = relative.split('/', 1)[1]
+        if relative in APPROVED_MEDIA:
+            if not data.startswith((b'GIF87a', b'GIF89a')) or len(data) > 10_000_000:
+                findings.append({'file': name, 'kind': 'invalid_demo_gif'})
+            continue
         try:
             text = data.decode('utf-8-sig')
         except UnicodeError:

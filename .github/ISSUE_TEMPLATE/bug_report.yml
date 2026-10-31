@@ -1,0 +1,100 @@
+name: Bug report
+description: Report a reproducible gateway, streaming, tool, or recovery problem.
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use dummy data. Do not attach credentials, cookies, private runtime URLs, raw HTTP headers, chat transcripts, SQLite files, or personal logs.
+        A tool proposal is not an execution receipt. Keep your local journal if an action's outcome is uncertain.
+  - type: input
+    id: bridge-version
+    attributes:
+      label: Bridge X version
+      placeholder: "12.12.3"
+    validations:
+      required: true
+  - type: input
+    id: python-version
+    attributes:
+      label: Python version
+      placeholder: "Python 3.13.x"
+    validations:
+      required: true
+  - type: input
+    id: operating-system
+    attributes:
+      label: Operating system
+      placeholder: "Windows 11"
+    validations:
+      required: true
+  - type: dropdown
+    id: provider-mode
+    attributes:
+      label: Provider mode
+      options:
+        - fake
+        - molab native
+        - molab auto or structured compatibility
+        - openai-compatible
+    validations:
+      required: true
+  - type: dropdown
+    id: streaming
+    attributes:
+      label: Streaming or non-streaming
+      options:
+        - Streaming SSE
+        - Non-streaming JSON
+        - Both
+    validations:
+      required: true
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed behavior
+      description: Describe the actual result with sanitized examples only.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Include minimal commands and dummy input, without credentials or private paths.
+      placeholder: "1. Start a temporary fake-provider server..."
+    validations:
+      required: true
+  - type: input
+    id: error-code
+    attributes:
+      label: Sanitized error code
+      description: Only the stable error code, or NONE. Do not paste an entire response or headers.
+      placeholder: "UPSTREAM_INCOMPLETE or NONE"
+    validations:
+      required: true
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Test environment
+      options:
+        - Offline fake or mocked upstream
+        - Real local client with simulated provider
+        - Real installed client with authorized live provider
+    validations:
+      required: true
+  - type: checkboxes
+    id: confirmation
+    attributes:
+      label: Reproduction confirmation
+      options:
+        - label: I reproduced this using the steps above and accurately identified whether the provider/client was simulated or real.
+          required: true
+        - label: I removed credentials, private URLs, personal data, raw headers, and local journals from this report.
+          required: true
