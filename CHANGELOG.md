@@ -4,6 +4,9 @@ This is a reconstructed history from the existing project changelog, regression 
 
 ## Unreleased — Repository documentation
 
+- Publication follow-up merges the documentation into main and adds offline Windows/Python 3.13 CI plus a validated, immutable beta publisher.
+- The release builder now includes contribution/GitHub files, uses a fixed versioned prefix and timestamps, writes into a separate output directory, leaves the checkout manifest intact, and refuses replacing different existing assets. Four new packaging regressions cover these changes; gateway runtime behavior is unchanged.
+
 - Exposes the source, tests, and tooling from the original tracked public ZIP as browsable repository files, preserving their bytes.
 - Expands the README with an offline API example, navigation, structure, security, and evidence limits.
 - Adds complete file/import guides, architecture flows, development/testing guidance, contribution instructions, and repository presentation notes.

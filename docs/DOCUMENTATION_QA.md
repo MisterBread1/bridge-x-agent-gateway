@@ -4,6 +4,18 @@
 
 Review date: **2026-10-31** (operator's Asia/Qyzylorda calendar). Version: **12.12.3-beta.1**.
 
+This page preserves the completed documentation-review evidence below. A subsequent **2026-11-01 publication follow-up** merged that documentation into main, expanded the release builder, added four packaging regressions and two GitHub Actions workflows, and refreshed the current file guide/manifest. Earlier file counts and byte-preservation statements below describe the original documentation commit, not the later tooling update.
+
+## Publication follow-up validation — 2026-11-01
+
+- Full local Windows/Python 3.13.13 regression: **472 passed, 1 skipped, 1 warning in 62.64 seconds**. The original symlink-permission skip and Starlette/httpx warning remain.
+- Four packaging tests passed independently: current documentation/workflow inclusion and checksums, repeatable output without modifying the checkout manifest, immutable existing assets, and private/unlisted-file exclusion.
+- Both workflow YAML files parse. Official checkout/setup-python v6 commit IDs were verified before pinning them; no third-party publisher is used. CI has read-only repository permission; the beta publishing job uses contents-write on trusted main only.
+- All 31 exact runtime/development pins were confirmed available on public PyPI. This check is not a hosted Actions success claim.
+- The current guide covers **86 tracked files**. Every original gateway module/test/helper/configuration/dependency file still matches the historical ZIP except the intentionally updated `tools/build_release.py`: **65 original files remain byte-identical**. During publication, main advanced with commit `8c97cebb9a780eebce287362df19f0468f62afd0`, removing the old ZIP. That concurrent deletion is preserved; the binary is not restored to the source tree.
+- The complete release archive selects current allowlisted source/documentation and contains no nested old ZIP. Its internal file checksums and separate outer ZIP checksum describe the release bundle. Downloadable binaries belong in GitHub Releases; the original archive remains in Git history.
+- Hosted CI and publication must be verified from their actual GitHub run/release records. Local validation does not imply a published tag or uploaded asset.
+
 ## Baseline and scope
 
 The inspected GitHub default branch `main` at `e33e06eb5bf531d20d8d266d4cf4bbfad65865e4` contained only a short README and `bridge-x-12.12.3-beta.1.zip`. The ZIP's Git blob ID, `9e1d391f70996ee54af03d7e395754029ed3bebb`, matched the locally prepared public archive. The complete referenced development chat was paginated to its first turn to understand history; no chat transcript or private acceptance artifact is included in this repository.
@@ -78,6 +90,6 @@ Scanning and diff review are bounded checks, not proof that unknown prior histor
 
 - No live Molab requests, installed-ZCode actions, new CI run, cross-platform certification, or performance benchmark is part of this task.
 - The existing dependency warning and any Windows symlink skip remain visible in actual test output.
-- The original builder's allowlist omits arbitrary new root files and `.github/`. It was not changed or invoked to overwrite the frozen tracked ZIP. Use the checkout for the complete documentation set.
+- The original documentation commit left the old builder untouched. The publication follow-up now includes contribution and GitHub configuration files in a separate complete ZIP, without overwriting the original tracked archive.
 - About text and topics are provided in [GITHUB.md](GITHUB.md); the connector used here does not expose a repository-metadata update action.
 - Existing runtime limitations, including client-trusted receipts/hash verification and process-local scheduling, are documented in [ARCHITECTURE.md](ARCHITECTURE.md).

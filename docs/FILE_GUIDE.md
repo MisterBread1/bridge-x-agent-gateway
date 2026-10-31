@@ -2,14 +2,17 @@
 
 [README](../README.md) · [Architecture](ARCHITECTURE.md) · [Development](DEVELOPMENT.md) · [Testing](TESTING.md)
 
-This inventory covers **all 84 tracked files in the documentation branch**, including hidden configuration and the original ZIP. It excludes ignored/private/generated working state. Every Python file was inspected; symbols/imports below reflect its implementation, including lazy imports. Empty package markers are listed explicitly.
+This inventory covers **all 86 tracked files in the documentation branch**, including hidden configuration and GitHub workflows. It excludes ignored/private/generated working state. Every Python file was inspected; symbols/imports below reflect its implementation, including lazy imports. Empty package markers are listed explicitly.
 
 ## Complete tracked tree
 
 ```text
 bridge-x-agent-gateway/
 ├── .github/
-│   └── PULL_REQUEST_TEMPLATE.md
+│   ├── PULL_REQUEST_TEMPLATE.md
+│   └── workflows/
+│       ├── ci.yml
+│       └── release.yml
 ├── .gitignore
 ├── CHANGELOG.md
 ├── CONTRIBUTING.md
@@ -19,7 +22,6 @@ bridge-x-agent-gateway/
 ├── README.md
 ├── RELEASE_NOTES.md
 ├── SECURITY.md
-├── bridge-x-12.12.3-beta.1.zip
 ├── bridge_x/
 │   ├── __init__.py
 │   ├── __main__.py
@@ -88,6 +90,7 @@ bridge-x-agent-gateway/
 │   ├── test_regression_127.py
 │   ├── test_regression_129.py
 │   ├── test_release_cli.py
+│   ├── test_release_packaging.py
 │   ├── test_sandbox_runner.py
 │   ├── test_schema125.py
 │   ├── test_sse.py
@@ -351,6 +354,7 @@ Category: **tests** for every row below. Ordinary users do **not** edit these fo
 
 | Exact path | Responsibility / verified behavior | Internal relationships |
 |---|---|---|
+| [`tests/test_release_packaging.py`](../tests/test_release_packaging.py) | Complete archive membership and stable versioned prefix, internal checksums, repeatable bytes, unchanged checkout manifest, immutable existing outputs, and exclusion of private/unlisted root files; exercises tools.build_release. | `bridge_x`, `tools.build_release` |
 | [`tests/__init__.py`](../tests/__init__.py) | Empty package marker enabling relative imports between regression modules. | Package marker used by relative test imports |
 | [`tests/conftest.py`](../tests/conftest.py) | Shared synthetic Write/Bash schemas plus `tools` and `request_factory` pytest fixtures; downstream modules import these declarations. | `bridge_x.schemas` |
 | [`tests/test_agent_recovery.py`](../tests/test_agent_recovery.py) | Restart/duplicate-dispatch protection, explicit idempotency, CSS edit/readback across journal reopen, ownership and transaction rollback, capability honesty, absolute deadline cancellation, and twice-invoked real temporary HTTP cleanup. Exports `Proposals` for other tests. | `bridge_x.config`, `bridge_x.errors`, `bridge_x.gateway`, `bridge_x.journal`, `bridge_x.molab_provider`, `bridge_x.providers`, `bridge_x.schemas`, `bridge_x.tool_models`, `bridge_x_test_runner.runner`, `tests.conftest`, `tests.test_molab_integration` |
@@ -424,9 +428,9 @@ Package marker for `python -m tools...` helpers. No gateway startup side effect.
 
 [Open source](../tools/build_release.py) · Category: Tooling · User edit: **No**.
 
-`main()` selects an explicit file/directory allowlist, reads `bridge_x.__version__`, refreshes the selected per-file SHA-256 list, writes a ZIP beside the checkout, and writes its outer checksum. Does not automatically include arbitrary new root docs or `.github/`; does not read private credentials.
+`release_members()` selects complete source/docs/CONTRIBUTING and GitHub configuration, rejecting symlink/escaped inputs and generating an archive-only SHA-256 manifest. `build_release()` uses a stable versioned prefix and timestamps, writes a complete ZIP and checksum to artifacts or an explicit directory, and refuses different existing outputs. `main()` exposes --output-dir. The checkout manifest and original ZIP remain unchanged.
 
-**Public symbols:** `main`.
+**Public symbols:** `release_members`, `build_release`, `main`.
 
 **Internal relationships:** `bridge_x`.
 
@@ -464,6 +468,8 @@ Package marker for `python -m tools...` helpers. No gateway startup side effect.
 
 | Exact path | Category and responsibility | Relationship / questions answered | Should an ordinary user edit it? |
 |---|---|---|---|
+| [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) | **GitHub Actions configuration.** Runs the full offline Windows/Python 3.13 suite, dependency consistency, temporary HTTP/SSE and CSS acceptance, then builds/audits the complete ZIP on main pushes and PRs. | Read-only repository token; no live-provider configuration. | Maintainers edit the workflow; users do not need it for local startup. |
+| [`.github/workflows/release.yml`](../.github/workflows/release.yml) | **GitHub Actions configuration.** Validates main before publishing a versioned beta release and complete ZIP/checksum via the existing ephemeral GitHub token. Runs on version/publisher changes or manual dispatch; never replaces an existing release. | Contents-write permission is limited to the release job; no persistent token is created. | Maintainers edit for release automation; users download verified assets. |
 | [`.gitignore`](../.gitignore) | **Configuration.** Excludes environments, bytecode/test caches, private local configuration/environment values, SQLite/database sidecars, logs, dumps, acceptance output, and coverage artifacts. | Git publication hygiene; never a substitute for staged-diff review. | Maintainers only when generated/private file categories change. |
 | [`.github/PULL_REQUEST_TEMPLATE.md`](../.github/PULL_REQUEST_TEMPLATE.md) | **Documentation / GitHub.** Prompts a PR author for the concrete problem, resulting behavior, executed checks, evidence limits, and private-data exclusion. | Used by GitHub when opening pull requests; links conceptually to contribution and file guides. | Contributors fill its sections in a PR; maintainers edit the template. |
 | [`requirements.txt`](../requirements.txt) | **Configuration / dependencies.** Pins the 22-distribution runtime dependency closure, including FastAPI/Uvicorn, httpx, Pydantic, JSON Schema, and transitive requirements. | Consumed by manual setup, start.bat when dependencies are missing, and requirements-dev.txt. | Users install it; maintainers update pins with compatibility checks. |
@@ -486,7 +492,6 @@ Package marker for `python -m tools...` helpers. No gateway startup side effect.
 | [`docs/TESTING.md`](../docs/TESTING.md) | **Documentation.** Maps all test groups, complete/focused commands, HTTP/CSS acceptance, Windows checks, external-access commands, and evidence provenance. | Connects fixtures and behaviors to tests; distinguishes simulated transports from installed-client/live work. | Contributors follow it; maintainers update with new behaviors/tests. |
 | [`docs/VALIDATION.md`](../docs/VALIDATION.md) | **Documentation / historical evidence.** Preserves earlier clean-install public-release observations, failures and fixes during preparation, scanner scope/false positive, and platform warnings. | Links current QA separately; its external original report is not falsely presented as tracked. | Users/reviewers read; maintainers preserve attribution. |
 | [`FILE_SHA256SUMS.txt`](../FILE_SHA256SUMS.txt) | **Generated verification manifest.** SHA-256 of the current tracked repository files except this manifest itself. | Refreshed for this documentation checkout; the frozen ZIP has its own original internal manifest. Builder output has a narrower allowlist. | Do not hand-edit; maintainers regenerate after final file selection. |
-| [`bridge-x-12.12.3-beta.1.zip`](../bridge-x-12.12.3-beta.1.zip) | **Release artifact.** Original binary public distribution already on the default branch; preserved byte-for-byte. | Its extracted source is exposed here; later repository docs are not inside this frozen ZIP. Audit contents using ZIP extraction/member inspection. | Users may extract; do not edit or silently replace this versioned artifact. |
 
 ## Runtime module dependencies
 

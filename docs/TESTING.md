@@ -34,6 +34,7 @@ Do not inherit a real provider's `BRIDGEX_*` settings into a test run. In a fres
 | Boundary hardening | `test_audit_hardening.py`, `test_regression_127.py`: duplicate keys, invalid Unicode, non-finite numbers, forbidden remote refs, late events, safe headers/errors, and bounded terminal output. |
 | Temporary executor | `test_sandbox_runner.py`: relative-path restrictions, symlink/traversal rejection, exact edits/patches, hash preconditions, and Python result classification. |
 | CLI | `test_release_cli.py`: syntax-only config errors, non-overwriting template, explicit fake selection, optional dummy token, and occupied-port handling. |
+| Release packaging | `test_release_packaging.py`: complete docs/workflows, stable prefix, valid checksums, repeatable output, unchanged checkout manifest, refusal to overwrite another asset, and private-file exclusion. |
 | Synthetic stress | `test_stress.py`: 55 declared tools with a large request, 100,000 small SSE frames, and compaction of a 500-message tool history. These are correctness scenarios, not performance benchmarks. |
 
 All file roles and cross-test fixture imports are listed in [FILE_GUIDE.md](FILE_GUIDE.md).
@@ -49,6 +50,8 @@ All file roles and cross-test fixture imports are listed in [FILE_GUIDE.md](FILE
 ```
 
 Run the relevant group during implementation, then the full suite before publishing executable changes. A docs-only update should validate links, paths, diagrams, inventory, source preservation, and example commands. The review recorded in [DOCUMENTATION_QA.md](DOCUMENTATION_QA.md) also includes an offline full-suite run.
+
+[Offline CI](../.github/workflows/ci.yml) runs the complete Windows/Python 3.13 suite and independent acceptance checks for main pushes and PRs. [Beta publishing](../.github/workflows/release.yml) repeats validation on main before creating a versioned release with the complete ZIP and checksum. These files configure checks; passing status requires an actual completed Actions run.
 
 ## Independent local acceptance
 

@@ -8,6 +8,8 @@ Bridge X translates provider responses into Chat Completions messages, validates
 
 [Quick Start](#quick-start) · [Configuration](docs/CONFIGURATION.md) · [Architecture](docs/ARCHITECTURE.md) · [File guide](docs/FILE_GUIDE.md) · [Testing](docs/TESTING.md) · [Contributing](CONTRIBUTING.md)
 
+[Download beta releases](https://github.com/MisterBread1/bridge-x-agent-gateway/releases) · [Automated checks](https://github.com/MisterBread1/bridge-x-agent-gateway/actions)
+
 Use the offline simulator to check installation first. A successful local test does not establish live-provider availability or certify an installed client.
 
 ## Features
@@ -187,7 +189,7 @@ Beta. See [release notes](RELEASE_NOTES.md), [historical release acceptance](doc
 | `examples/` | Placeholder-only configuration template. |
 | `docs/` | Configuration, architecture, development, testing, and complete file inventory. |
 
-The [file guide](docs/FILE_GUIDE.md) includes every tracked file and the complete tree. This checkout also retains the original published ZIP; it is a frozen release artifact and does not contain later repository documentation edits.
+The [file guide](docs/FILE_GUIDE.md) includes every tracked file and the complete tree. Versioned binary downloads belong on the release page. Use the `-complete.zip` asset for current documentation and contribution/workflow files; each release has an outer checksum and an internal file manifest.
 
 ## Security
 

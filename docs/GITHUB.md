@@ -12,7 +12,7 @@ Suggested About description:
 
 Suggested GitHub topics: `python`, `ai-gateway`, `openai-compatible`, `tool-calling`, `sse`, `sqlite`, `fastapi`, `ai-agents`, `zcode`.
 
-These are proposed metadata values, not a claim that repository settings were updated. The connected GitHub tools used for this documentation work support repository reads and Git/PR writes, but do not expose About/topic mutation.
+The About description already matches this text. Topics remain suggested unless independently confirmed in repository settings. The connected GitHub tools support repository reads and Git/PR writes, but do not expose About/topic mutation.
 
 Feature summary: local Chat Completions gateway; validated client tool proposals; native frontend events; SSE error handling; persistent receipts and cooldowns. Keep beta status and offline/live evidence distinctions visible in any release description.
 
@@ -20,21 +20,21 @@ Feature summary: local Chat Completions gateway; validated client tool proposals
 
 The root README is the entry point. Configuration answers operator questions; architecture and development explain extension points; testing distinguishes simulated providers from installed clients; the file guide is the exact inventory. The contribution guide and pull request template direct reviewers to concrete reproduction and validation evidence.
 
-No CI workflow existed in the inspected default branch or original archive. This change does not fabricate CI status, publish a badge, or enable a new workflow. Future CI can start with the offline commands in [TESTING.md](TESTING.md), with Windows-specific skips reported explicitly.
+No CI workflow existed in the original archive. The repository now includes [offline CI](../.github/workflows/ci.yml) for Windows/Python 3.13 and a [validated beta publisher](../.github/workflows/release.yml). Tests, pip consistency, temporary HTTP/SSE, native CSS acceptance, and archive auditing precede publication. Workflow files alone are not a passing CI claim; inspect the actual Actions run before citing it as evidence.
 
-## Preserved original artifact
+## Source and release artifacts
 
-`bridge-x-12.12.3-beta.1.zip` was already tracked on the default branch. It is retained byte-for-byte as the original distribution. The source files exposed by this change came from that exact archive; Python, tests, configuration template, dependencies, and launchers were not rewritten to document them.
+`bridge-x-12.12.3-beta.1.zip` was originally tracked on the default branch; its source was exposed for browsing by the documentation change. A later main-branch commit removed that binary from the source tree. The publication follow-up preserves that deletion and places downloadable assets in GitHub Releases. The original distribution remains in Git history; gateway modules, original tests, configuration template, dependency pins, and launcher are unchanged from its source.
 
-The ZIP's original internal `FILE_SHA256SUMS.txt` covers that archive's files. The root manifest in this checkout is refreshed to cover the current tracked tree, including the preserved ZIP, excluding only the manifest itself. These are distinct snapshots. Later repository documentation is intentionally not advertised as being inside the frozen ZIP.
+The original ZIP's internal `FILE_SHA256SUMS.txt` covers its historical files. The root manifest in this checkout covers the current tracked source tree, excluding only the manifest itself. The new `bridge-x-12.12.3-beta.1-complete.zip` release asset includes current source/docs, contribution guide, and GitHub configuration, with its own internal checksums. Private/generated local state and older binary archives are excluded.
 
 ## Prepare a future release
 
 1. Select a release version and source commit, preserve existing release assets, and review the working diff.
 2. Run offline regressions and acceptance. Record platform, commands, failures/skips/warnings, and live checks only if separately authorized and actually performed.
-3. Review `tools/build_release.py` before invoking it. Its allowlist omits arbitrary new root files and `.github/`; update and test it separately if the next ZIP should contain all repository documentation. The archive prefix uses the checkout directory name.
-4. Build into a separate release location, audit the selected files and an extracted ZIP, and verify per-file and archive SHA-256. Do not include local settings, credentials, state, or transcripts.
-5. Publish notes that clearly identify beta status and evidence limits, with an immutable source commit/tag and matching checksums. Creating GitHub release/tag assets is a separate action from this documentation PR.
+3. Use `python -m tools.build_release --output-dir artifacts` in a clean checkout. It selects complete allowlisted source/docs and uses a stable versioned archive root without changing the checkout's manifest.
+4. Audit selected files and an extracted ZIP, and verify per-file and outer SHA-256. The builder refuses different pre-existing outputs. Do not include local settings, credentials, state, or transcripts.
+5. The release workflow publishes tag `v<package version>`, beta notes, complete ZIP, and `SHA256SUMS.txt` only after its checks pass. It runs on main when the version or publisher changes, or manually. Existing releases/assets are not overwritten; use a new version for a new publication.
 
 ## Optional demo media
 
