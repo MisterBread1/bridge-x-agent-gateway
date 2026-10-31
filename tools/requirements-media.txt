@@ -1,0 +1,2 @@
+# Optional authoring tools only. Never included by requirements.txt.
+Pillow==13.0.0

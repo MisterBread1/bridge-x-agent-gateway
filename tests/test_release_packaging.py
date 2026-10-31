@@ -16,7 +16,9 @@ def test_complete_archive_has_stable_prefix_docs_and_valid_checksums(tmp_path):
     with ZipFile(tmp_path / result['archive']) as archive:
         for name in ['CONTRIBUTING.md', '.github/PULL_REQUEST_TEMPLATE.md',
                      '.github/workflows/ci.yml', '.github/workflows/release.yml',
-                     'docs/FILE_GUIDE.md', 'docs/ARCHITECTURE.md', 'start.bat']:
+                     'docs/FILE_GUIDE.md', 'docs/ARCHITECTURE.md', 'start.bat',
+                     'docs/assets/bridge-x-demo.gif', 'docs/assets/bridge-x-demo-ledger.gif',
+                     '.github/ISSUE_TEMPLATE/bug_report.yml', 'tools/requirements-media.txt']:
             assert archive.read(PREFIX + name) == (ROOT / name).read_bytes()
         for line in archive.read(PREFIX + 'FILE_SHA256SUMS.txt').decode().splitlines():
             digest, name = line.split('  ', 1)

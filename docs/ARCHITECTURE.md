@@ -2,7 +2,7 @@
 
 [README](../README.md) · [Configuration](CONFIGURATION.md) · [File guide](FILE_GUIDE.md) · [Development](DEVELOPMENT.md) · [Testing](TESTING.md)
 
-This describes the source in **12.12.3-beta.1**, including compatibility paths. Bridge X is a protocol gateway and receipt coordinator. A provider proposes actions, the gateway validates and delivers them, and the requesting client owns permissions and execution. Neither model text nor a dispatched call proves that an action ran.
+This describes the source in **12.12.3**, including compatibility paths. Bridge X is a protocol gateway and receipt coordinator. A provider proposes actions, the gateway validates and delivers them, and the requesting client owns permissions and execution. Neither model text nor a dispatched call proves that an action ran.
 
 ## Components
 

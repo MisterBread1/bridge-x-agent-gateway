@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Setup, configuration, and troubleshooting
+    url: https://github.com/MisterBread1/bridge-x-agent-gateway/blob/main/README.md
+    about: Start with the README and linked configuration and testing guides. Never post credentials or private journals.
