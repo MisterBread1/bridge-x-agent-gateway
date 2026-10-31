@@ -1,0 +1,7 @@
+{
+  "notebook_url": "https://molab.marimo.io/notebooks/YOUR_NOTEBOOK_ID_HERE",
+  "chat_url": "https://YOUR_RUNTIME_HERE.sb.molab.run/api/ai/chat",
+  "marimo_session_id": "YOUR_SESSION_ID_HERE",
+  "marimo_server_token": "",
+  "http_headers": {}
+}
