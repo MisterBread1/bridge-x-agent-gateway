@@ -1,0 +1,46 @@
+'use strict';
+(() => {
+  const $ = id => document.getElementById(id);
+  let key = '', selected = null, snapshot = null, next = null, timer = null, refreshing = false;
+  const labels = {DISPATCHED:'Ожидается результат',EXECUTION_UNKNOWN:'Исход неизвестен',ACKNOWLEDGED:'Результат без подтверждения',EXECUTED:'Клиент подтвердил',VERIFIED:'Клиент проверил',FAILED:'Неуспешно',CANCELLED:'Отменено',TIMED_OUT:'Таймаут',RESOLVED_BY_CHECK:'Последствия проверены'};
+  const uncertain = new Set(['DISPATCHED','EXECUTION_UNKNOWN','ACKNOWLEDGED','CANCELLED','TIMED_OUT']);
+  const node = (tag, text, cls) => {const el=document.createElement(tag);if(text!==undefined)el.textContent=text;if(cls)el.className=cls;return el;};
+  function logout(){key='';selected=null;snapshot=null;clearInterval(timer);timer=null;$('app').hidden=true;$('login').hidden=false;$('key').value='';$('operations').replaceChildren();$('events').replaceChildren();}
+  async function api(path, data){
+    const response=await fetch(path,{method:data===undefined?'GET':'POST',headers:{Authorization:'Bearer '+key,...(data===undefined?{}:{'Content-Type':'application/json'})},body:data===undefined?undefined:JSON.stringify(data),cache:'no-store',credentials:'omit'});
+    let value;try{value=await response.json();}catch{throw new Error('SERVER_RESPONSE_INVALID');}
+    if(!response.ok){if(response.status===401)logout();throw new Error(value.error?.code||'REQUEST_FAILED');}
+    return value;
+  }
+  async function login(value){key=value.trim();if(!key)return;try{await refresh();$('key').value='';$('login-error').textContent='';$('login').hidden=true;$('app').hidden=false;clearInterval(timer);timer=setInterval(()=>{if(!document.hidden)refresh().catch(error=>{$('connection-state').textContent='Данные устарели · '+error.message;});},3000);await loadConfig();}catch(error){logout();$('login-error').textContent='Не удалось открыть панель: '+error.message;}}
+  $('login-form').addEventListener('submit',event=>{event.preventDefault();login($('key').value);});
+  $('key-file').addEventListener('change',async event=>{const file=event.target.files[0];if(file&&file.size<=1024)await login(await file.text());event.target.value='';});
+  $('logout').addEventListener('click',logout);
+  document.querySelectorAll('[data-tab]').forEach(button=>button.addEventListener('click',()=>{document.querySelectorAll('[data-tab]').forEach(other=>{other.classList.toggle('wb-selected',other===button);other.setAttribute('aria-pressed',String(other===button));});document.querySelectorAll('[data-page]').forEach(page=>{page.hidden=page.dataset.page!==button.dataset.tab;});}));
+  function renderOperations(operations,append=false){
+    if(!append)$('operations').replaceChildren();
+    for(const operation of operations){const row=node('button',undefined,'wb-event');row.type='button';row.dataset.id=operation.id;row.setAttribute('aria-pressed',String(selected?.id===operation.id));row.classList.toggle('wb-event-selected',selected?.id===operation.id);row.append(node('time',operation.created_at?.split(' ')[1]||''),node('span',uncertain.has(operation.status)?'—':operation.status==='FAILED'?'×':operation.status==='EXECUTED'||operation.status==='VERIFIED'?'✓':'·'),node('span',operation.name,'wb-tool'),node('span',operation.session||'Без session ID','wb-path'),node('span',labels[operation.status]||operation.status,'wb-result'));row.addEventListener('click',()=>select(operation.id));$('operations').append(row);}
+    $('empty').hidden=$('operations').childElementCount>0;
+  }
+  async function refresh(before){
+    if(!key||refreshing)return;refreshing=true;
+    try{const data=await api('/ui/api/snapshot'+(before?'?before='+encodeURIComponent(before):''));snapshot=data;next=data.next_cursor;renderOperations(data.operations,Boolean(before));$('more').hidden=next===null;$('version').textContent='Bridge X '+data.version+' · '+data.provider;$('attention').textContent=data.unresolved?'Требуют проверки: '+data.unresolved:'';$('address').textContent=location.host;$('storage-state').textContent='SQLite · '+data.journal_mode+' · последние 100 безопасных событий';
+      const connection=data.connection;const cooldown=data.rate_control.cooldown_remaining_seconds||0;
+      $('connection-state').textContent=data.provider==='fake'?'Офлайн-тест':cooldown?'Пауза Molab · '+cooldown+' сек':connection.verified?'Molab: недавняя генерация успешна':connection.last_failure_code?'Molab · '+connection.last_failure_code:'Molab: генерация ещё не подтверждена';
+      $('events').replaceChildren();for(const event of data.events){const row=node('div');row.append(node('time',event.at?.split(' ')[1]||''),node('span',event.event),node('code',event.error_code||event.outcome||event.agent_state||''));$('events').append(row);}
+      if(selected){const known=data.operations.find(op=>op.id===selected.id);if(known&&known.status!==selected.status)await select(selected.id);}
+    }finally{refreshing=false;}
+  }
+  async function select(id){try{selected=await api('/v1/operations/'+encodeURIComponent(id));$('detail').hidden=false;$('recovery').hidden=true;$('detail-caption').textContent=selected.updated_at;$('detail-name').textContent=selected.name;$('detail-id').textContent=selected.id;$('detail-id').hidden=false;$('facts').replaceChildren();for(const [label,value] of [['Результат',labels[selected.status]||selected.status],['Категория',selected.result_kind||'Нет receipt'],['Исполнитель','Клиент'],['Проверенность всей задачи','Не установлена']]){const row=node('div');row.append(node('dt',label),node('dd',value));$('facts').append(row);}$('resolution').hidden=!uncertain.has(selected.status);document.querySelectorAll('.wb-event').forEach(row=>{row.classList.toggle('wb-event-selected',row.dataset.id===id);row.setAttribute('aria-pressed',String(row.dataset.id===id));});}catch(error){$('message').textContent=error.message;}}
+  $('refresh').addEventListener('click',()=>refresh().catch(error=>{$('message').textContent=error.message;}));
+  $('more').addEventListener('click',()=>{if($('operations').childElementCount>=200){$('message').textContent='Открыто 200 действий. Обновите список для перехода к последним.';return;}refresh(next).catch(error=>{$('message').textContent=error.message;});});
+  $('open-recovery').addEventListener('click',()=>{$('detail').hidden=true;$('recovery').hidden=false;$('recovery').reset();$('recovery-error').textContent='';});
+  $('back').addEventListener('click',()=>{$('detail').hidden=false;$('recovery').hidden=true;});
+  $('recovery').addEventListener('submit',async event=>{event.preventDefault();if(!selected)return;const button=event.submitter;button.disabled=true;try{await api('/ui/api/verify/'+encodeURIComponent(selected.id),{conversation_id:selected.conversation_id,expected_sha256:$('expected').value.trim(),observed_sha256:$('observed').value.trim(),execution_stopped:$('stopped').checked});await select(selected.id);await refresh();$('message').textContent='Проверка записана. Продолжение задачи отправляется из ZCode.';}catch(error){$('recovery-error').textContent=error.message;}finally{button.disabled=false;}});
+  async function loadConfig(){const config=await api('/ui/api/config');$('base-url').textContent=config.base_url;$('config-present').textContent=config.config_present?'Конфигурация есть. Для замены введите новый полный набор.':'Конфигурация не создана.';$('config-form').querySelector('button').disabled=!config.editable;}
+  $('config-form').addEventListener('submit',async event=>{event.preventDefault();const button=event.submitter;button.disabled=true;try{const result=await api('/ui/api/config',{chat_url:$('runtime-url').value.trim(),marimo_session_id:$('session-id').value.trim(),marimo_server_token:$('server-token').value});$('config-form').reset();$('config-result').textContent=result.provider_restart_required?'Сохранено. Для Molab запустите Bridge X без --provider fake.':'Сохранено локально. Следующий запрос использует эти значения.';await loadConfig();}catch(error){$('config-result').textContent=error.message;}finally{button.disabled=false;}});
+  async function checkRuntime(configure){$('check-runtime').disabled=true;$('set-manual').disabled=true;$('config-result').textContent='Проверяется доступ к runtime…';try{const result=await api('/ui/api/check-runtime',{configure});$('config-result').textContent='Runtime доступен. Режим: '+result.mode+'. Генерация модели не проверялась.';$('set-manual').hidden=result.mode!=='code_mode';}catch(error){$('config-result').textContent=error.message;}finally{$('check-runtime').disabled=false;$('set-manual').disabled=false;}}
+  $('check-runtime').addEventListener('click',()=>checkRuntime(false));$('set-manual').addEventListener('click',()=>{if(confirm('Изменить AI mode этого Molab runtime на manual?'))checkRuntime(true);});
+  $('report').addEventListener('click',async()=>{try{const result=await api('/diagnostics/report');const blob=new Blob([JSON.stringify(result,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const link=node('a');link.href=url;link.download='bridge-x-report.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}catch(error){$('message').textContent=error.message;}});
+  window.addEventListener('pagehide',()=>{key='';clearInterval(timer);});
+})();

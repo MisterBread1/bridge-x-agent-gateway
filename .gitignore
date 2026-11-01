@@ -22,3 +22,7 @@ artifacts/
 .coverage
 .coverage.*
 htmlcov/
+build/
+dist/
+*.egg-info/
+local.key

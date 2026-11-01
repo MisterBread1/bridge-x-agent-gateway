@@ -6,8 +6,8 @@ Environment variables are read by `Settings.from_env()`. `.env` is not loaded. P
 |---|---|---|
 | `BRIDGEX_PROVIDER` | `molab` | `molab`, `fake`, or `openai-compatible`. CLI `--provider` overrides it. |
 | `BRIDGEX_LOCAL_KEY` | `molab-local` | Local Bearer key; use a unique nonempty value for normal operation. |
-| `BRIDGEX_MOLAB_CONFIG` | Project `.molab_local.json` | Explicit local Molab connection file. |
-| `BRIDGEX_JOURNAL_PATH` | `bridge_x_state.sqlite3` | Journal path relative to the working directory, or `:memory:` for disposable tests. |
+| `BRIDGEX_MOLAB_CONFIG` | User data `.molab_local.json`, with legacy project discovery | Explicit local Molab connection file. |
+| `BRIDGEX_JOURNAL_PATH` | User data journal, or existing working-directory journal | Journal path relative to the working directory, or `:memory:` for disposable tests. |
 | `BRIDGEX_TIMEOUT_SECONDS` | `600` | Total gateway request deadline, including queue and retries. |
 | `BRIDGEX_ACTION_CHARS` | `2200` | Advisory action size, 1000–12000; not a provider token limit. |
 | `BRIDGEX_MOLAB_TOOL_MODE` | `native` | `native`, `auto`, or explicit legacy `structured`. Native is the public default. |
@@ -24,7 +24,7 @@ Environment variables are read by `Settings.from_env()`. `.env` is not loaded. P
 
 Numeric time settings must be finite and positive. `BRIDGEX_LOCAL_KEY` authenticates the local gateway; it is not a Molab token. Do not put unsupported fields in the example and expect them to affect the application.
 
-CLI options: `--provider`, `--port` (default 8787, loopback only, zero chooses a free port), and `--check-config` (syntax only; no remote access or SQLite creation).
+CLI options: `--ui`, `--no-browser`, `key`, `backup --output <new-file>` ([workbench guide](WORKBENCH.md)); optional `doctor` command with `--network` (local health only) and `--report` (new sanitized JSON file); `--provider`, `--port` (default 8787, loopback only, zero chooses a free port), and `--check-config` (syntax only; no remote access or SQLite creation).
 
 ## Local HTTP endpoints
 
@@ -35,6 +35,7 @@ CLI options: `--provider`, `--port` (default 8787, loopback only, zero chooses a
 | `GET /v1/models` | Yes | Configured model identifier. |
 | `GET /v1/capabilities` | Yes | Declared protocol and observed native capability. |
 | `POST /v1/chat/completions` | Yes | OpenAI-compatible chat, native calls, and SSE. |
+| `GET /diagnostics/report` | Yes | Strictly allowlisted shareable lifecycle timeline; no commands, content, session IDs or configured URLs. |
 | `GET /diagnostics` | Yes | Bounded sanitized metadata and pacing status. |
 | `GET /v1/operations/{call_id}` | Yes | Operation state, not a request to execute it. |
 | `POST /v1/operations/{call_id}/verification` | Yes | Compares client-supplied expected/observed digests, checks owner/state, and records `VERIFIED`. No independent filesystem check. |
@@ -52,7 +53,7 @@ The server never runs tools itself. Tool schemas, results, and transcript text a
 | `x-request-id` | Optional sanitized correlation ID for metadata; not an idempotency key. |
 | `role: tool`, `tool_call_id` | Actual client result paired with the gateway-returned call ID. Include the preceding assistant call in history when available. |
 
-The schema engine replaces upstream IDs with fresh local call IDs. Return the local ID exactly. Receipts with explicit boolean `success` or integer `exit_code` can establish reported outcomes; stdout alone cannot. An unmatched result is retained as unverified. See [architecture and recovery](ARCHITECTURE.md#tool-ids-and-client-receipts).
+The schema engine replaces upstream IDs with fresh local call IDs. Return the local ID exactly. Receipts with explicit boolean `success` or integer `exit_code` can establish reported outcomes; stdout alone cannot. Recognized shell tools require a real exit code for success. Successful JSON replies and final SSE chunks add optional `x_bridge_x` metadata; see [continuity states](AGENT_CONTINUITY.md#public-continuity-diagnostics). A stop never proves task completion. An unmatched result is retained as unverified. See [architecture and recovery](ARCHITECTURE.md#tool-ids-and-client-receipts).
 
 ## Error responses
 
@@ -75,7 +76,7 @@ Once streaming has begun, failure is `event: error` inside HTTP 200 and is **not
 
 ## Limits and defaults in Python
 
-`Settings.from_env()` exposes only the variables listed above. Other dataclass limits are library configuration, not undocumented environment switches: request bytes 1,500,000; provider response bytes 4,000,000; output characters 1,000,000; tool argument bytes 256,000; context characters 220,000; heartbeat 5 seconds. The gateway/schema engine accepts at most 16 tool calls per response. `max_message_chars` is present in `Settings` but is not currently an independent per-message enforcement step in the request path.
+`Settings.from_env()` exposes only the variables listed above. Other dataclass limits are library configuration, not undocumented environment switches: request bytes 16,000,000; provider response bytes 4,000,000; output characters 1,000,000; tool argument bytes 256,000; context characters 220,000; heartbeat 5 seconds. The gateway/schema engine accepts at most 16 tool calls per response. `max_message_chars` is present in `Settings` but is not currently an independent per-message enforcement step in the request path.
 
 `Settings()` directly defaults to fake provider / structured mode / disabled pacing and retries. Environment-based startup defaults to Molab / native mode / verified pacing and two retries. `auto` uses native payloads and permits compatibility parsing in the gateway, but does not enable the verified-native retry policy. See [DEVELOPMENT.md](DEVELOPMENT.md).
 
@@ -86,3 +87,9 @@ The example file supports `notebook_url`, `chat_url`, `marimo_session_id`, optio
 The journal includes operation transitions and separate execution scopes. Historical receipt reconciliation uses the original conversation owner. Unconfirmed mutations in the same scope block unsafe continuation. `provider_control` records cooldown and the recent rate-pressure timestamp; a runtime/session change does not intentionally reset that state.
 
 Keep one active bridge for a given journal/quota. Admission priority is process-local, not a distributed limiter. A successful completion does not prove that a final client action was executed unless its receipt is available.
+
+## State and long-session limits in 12.13
+
+`BRIDGEX_DATA_DIR` overrides the per-user state directory. Windows uses `%LOCALAPPDATA%/BridgeX`; Linux uses `$XDG_DATA_HOME/BridgeX`, otherwise `~/.local/share/BridgeX`. Existing legacy files are discovered, never silently moved. GUI mode generates a personal `local.key`; ordinary CLI compatibility keeps the existing local-key default.
+
+The local request body bound is 16,000,000 bytes so history can be reconciled and compacted before inference. Molab payloads remain bounded to 1,500,000 bytes. The 220,000-character context bound also reserves declared tool schemas and envelope overhead; it is a conservative local bound, not a provider tokenizer or a guaranteed context-window size. Recent completed output can be explicitly elided while keeping typed receipt fields; pending executable inputs and user/system instructions remain intact. An explicit upstream context rejection can produce one smaller attempt before any output/input is exposed.

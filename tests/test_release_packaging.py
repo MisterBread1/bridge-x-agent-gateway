@@ -16,7 +16,8 @@ def test_complete_archive_has_stable_prefix_docs_and_valid_checksums(tmp_path):
     with ZipFile(tmp_path / result['archive']) as archive:
         for name in ['CONTRIBUTING.md', '.github/PULL_REQUEST_TEMPLATE.md',
                      '.github/workflows/ci.yml', '.github/workflows/release.yml',
-                     'docs/FILE_GUIDE.md', 'docs/ARCHITECTURE.md', 'start.bat',
+                     'docs/FILE_GUIDE.md', 'docs/ARCHITECTURE.md', 'start.bat', 'start-ui.bat', 'pyproject.toml',
+                     'bridge_x/ui/index.html', 'bridge_x/ui/style.css', 'bridge_x/ui/app.js',
                      'docs/assets/bridge-x-demo.gif', 'docs/assets/bridge-x-demo-ledger.gif',
                      '.github/ISSUE_TEMPLATE/bug_report.yml', 'tools/requirements-media.txt']:
             assert archive.read(PREFIX + name) == (ROOT / name).read_bytes()
@@ -26,6 +27,7 @@ def test_complete_archive_has_stable_prefix_docs_and_valid_checksums(tmp_path):
         assert not any(name.endswith(('.zip', '.sqlite3', '.pyc', '.log')) for name in archive.namelist())
         assert PREFIX + '.molab_local.json' not in archive.namelist()
         assert all(name.startswith(PREFIX) for name in archive.namelist())
+    assert (ROOT / 'requirements.txt').read_text(encoding='utf-8') == (ROOT / 'bridge_x/runtime-requirements.txt').read_text(encoding='utf-8')
 
 
 def test_build_is_repeatable_and_never_changes_checkout_manifest(tmp_path):

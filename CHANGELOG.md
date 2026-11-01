@@ -1,5 +1,18 @@
 # Changelog
 
+## 12.13.0 — Stable
+
+- Add an authenticated local operator workbench: real operations, uncertain-outcome checks, Molab setup, explicit runtime checks and sanitized reports. Start with `start-ui.bat` or `python -m bridge_x --ui`.
+- Fix missing required Node REPL `title` metadata without changing code or bypassing the declared schema.
+- Accept bounded client histories up to 16 MB before compaction, retain typed outcomes when shortening recent completed output, and account for tool-schema overhead. Explicit pre-output Molab context rejection permits one smaller attempt; partial output or tool input forbids it.
+- Preserve native historical call/result provenance and reject historical-call echoes. Reconcile pending assistant calls even after journal loss.
+- Fix contradictory cross-request receipts, unknown shell success, cancellation/timeout recovery, anonymous-session isolation, freshness after runtime failure, future-schema protection and event lookup indexes.
+- Serialize SQLite work off the event loop; return typed storage failures; reconcile duplicate receipts in one transaction without redundant updates. Fall back to rollback journaling on SQLite runtimes affected by the WAL reset bug.
+- Add stable per-user state paths, legacy discovery, a process-held journal lock, consistent non-overwriting backups, installable packaging and installed-GUI checks outside the source checkout.
+- Retain Doctor, safe lifecycle events and JSON/SSE continuity metadata. A model stop is not a claim of verified task completion.
+
+[Audit fixes and validation scope](docs/REVIEW_FIXES.md). Existing stable/beta tags and assets are preserved.
+
 This is a reconstructed history from the existing project changelog, regression reports, and public-release acceptance notes. It is not a claim of newly rerun historical tests or a complete release-by-release Git history. Earlier private reports are summarized here without publishing their transcripts, runtime identifiers, or local filesystem paths.
 
 ## 12.12.3 — First stable release

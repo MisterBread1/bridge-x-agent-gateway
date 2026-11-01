@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bridge-x-agent-gateway"
+dynamic = ["version", "dependencies"]
+description = "Native client-owned AI agent gateway"
+readme = "README.md"
+requires-python = ">=3.11"
+
+[project.scripts]
+bridge-x = "bridge_x.__main__:main"
+
+[tool.setuptools.dynamic]
+version = {attr = "bridge_x.__version__"}
+dependencies = {file = ["requirements.txt"]}
+
+[tool.setuptools.packages.find]
+include = ["bridge_x", "bridge_x_test_runner"]
+
+[tool.setuptools.package-data]
+bridge_x = ["ui/*.html", "ui/*.css", "ui/*.js", "runtime-requirements.txt"]

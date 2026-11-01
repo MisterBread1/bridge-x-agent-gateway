@@ -49,6 +49,13 @@ class RateLimitWait:
 
 
 @dataclass(frozen=True)
+class ContextRecovery:
+    """One pre-output context rejection; complete old exchanges were archived."""
+    before_chars: int
+    after_chars: int
+
+
+@dataclass(frozen=True)
 class Done:
     """Provider SSE end marker, not evidence of success without finish_reason."""
 

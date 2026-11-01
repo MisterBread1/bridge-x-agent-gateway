@@ -60,3 +60,4 @@ class OperationVerification(BaseModel):
     conversation_id: str | None = None
     expected_sha256: str = Field(pattern=r"^[a-fA-F0-9]{64}$")
     observed_sha256: str = Field(pattern=r"^[a-fA-F0-9]{64}$")
+    execution_stopped: bool = False

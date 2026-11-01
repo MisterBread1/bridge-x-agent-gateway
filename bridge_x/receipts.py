@@ -18,6 +18,8 @@ def classify_result(message: dict) -> str:
         return "reported_failure"
     if type(value.get("exit_code")) is int:
         return "exit_zero" if value["exit_code"] == 0 else "exit_nonzero"
+    if str(message.get("name", "")).lower() in {"bash", "terminal", "shell", "exec"}:
+        return "unknown"  # no inferred shell exit status, even with generic success prose
     if value.get("success") is True:
         return "reported_success"
     return "unknown"
