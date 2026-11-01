@@ -19,7 +19,7 @@ def native_messages(req, messages, budget):
     from .molab_provider import _plain_content
     from .tools import is_history_echo
     import uuid
-    output, pending, system = [], {}, []
+    output, pending, paired, system = [], {}, {}, []
     if req.tools and req.tool_choice != "none":
         task_guidance = (
             "Read existing files, make one small Edit/ApplyPatch, read back, then run a real project check. "
@@ -47,19 +47,31 @@ def native_messages(req, messages, budget):
         if role in ("tool", "function"):
             call_id = message.get("tool_call_id")
             part = pending.pop(call_id, None)
+            try:
+                result = loads(content)
+            except (ValueError, RecursionError):
+                result = content
             if part is not None:
                 # Keep the executor's actual result in its native tool part.
-                try:
-                    result = loads(content)
-                except (ValueError, RecursionError):
-                    result = content
                 part.update(state="output-available", output=result)
+                paired[call_id] = part
+            elif call_id in paired:
+                # A resumed transcript may repeat a receipt or later supply a
+                # real exit status for its earlier unknown text-only result.
+                from .receipts import classify_result
+                part = paired[call_id]
+                old_kind = classify_result({"content": part["output"], "name": part["toolName"]})
+                new_kind = classify_result({"content": result, "name": part["toolName"]})
+                if old_kind == "unknown" and new_kind != "unknown":
+                    part["output"] = result
+                elif part["output"] != result and new_kind != "unknown":
+                    raise BridgeError("TOOL_RECEIPT_CONFLICT", "Historical confirmed receipts disagree", 409)
             else:
                 output.append({"id": "msg-" + uuid.uuid4().hex, "role": "user", "parts": [
                     {"type": "text", "text": "[Unpaired client tool result; execution provenance is unverified.]\n" + content}]})
             continue
         parts = []
-        if is_history_echo(content):
+        if role == "assistant" and is_history_echo(content):
             content = "[Earlier historical-tool echo omitted; it did not execute an action.]"
         if content:
             parts.append({"type": "text", "text": content})
@@ -80,16 +92,10 @@ def native_messages(req, messages, budget):
             pending[call_id] = part
         output.append({"id": "msg-" + uuid.uuid4().hex, "role": role,
                        "parts": parts or [{"type": "text", "text": ""}]})
-    # Older completed call arguments are unnecessary for continuation. Keep
-    # the latest two cycles in native form; archive older pairs as metadata
-    # and real output, without replaying their potentially huge source code.
-    completed = [(message, part) for message in output for part in message["parts"]
-                 if part.get("type") == "dynamic-tool" and part.get("state") == "output-available"]
-    for message, part in completed[:-2]:
-        summary = {"type": "text", "text": "[Completed client tool history: " + part["toolName"]
-                   + " id=" + part["toolCallId"] + "; result follows, no new action.]\n"
-                   + json.dumps(part["output"], ensure_ascii=False)}
-        message["parts"][message["parts"].index(part)] = summary
+    # Completed tool parts are supported protocol data, not assistant prose.
+    # Keep their real inputs, call IDs and outputs paired at every age. The
+    # coordinator bounds old complete exchanges BEFORE serialization; rewriting
+    # them as ordinary assistant claims loses provenance and invites echoes.
     if system:
         output.insert(0, {"id": "msg-" + uuid.uuid4().hex, "role": "user", "parts": [
             {"type": "text", "text": "\n\n".join(system)}]})

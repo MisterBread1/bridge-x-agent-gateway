@@ -89,7 +89,9 @@ def is_history_echo(text: str) -> bool:
 
     Not a tool instruction. Do not try to repair or execute it.
     """
-    return bool(re.match(r"^(?:\\)?<previous_tool_calls(?:\s|>)", text.strip(), re.I))
+    return bool(re.match(
+        r"^(?:(?:\\)?<previous_tool_calls(?:\s|>)|\[Completed client tool history:)",
+        text.lstrip("\ufeff \t\r\n"), re.I))
 
 
 def parse_intent(text: str, req: ChatRequest, max_args_bytes=256_000) -> list[ToolCall] | None:

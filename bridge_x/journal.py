@@ -3,8 +3,16 @@ from pathlib import Path
 import sqlite3
 import threading
 import re
+import hashlib
+import json
 from .errors import BridgeError
 from .tool_models import OperationState
+from .observability import log_event, safe_fields, report_events, tool_type
+from .json_utils import loads
+
+
+def argument_fingerprint(values):
+    return hashlib.sha256(json.dumps(values, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode()).hexdigest()
 
 
 _RESULT_STATES = {
@@ -76,6 +84,14 @@ class Journal:
             operation_columns = {row[1] for row in self.db.execute("PRAGMA table_info(operations)")}
             if "execution_scope" not in operation_columns:
                 self.db.execute("ALTER TABLE operations ADD COLUMN execution_scope TEXT NOT NULL DEFAULT 'main_turn'")
+            if "argument_hash" not in operation_columns:
+                self.db.execute("ALTER TABLE operations ADD COLUMN argument_hash TEXT")
+            diagnostic_columns = {row[1] for row in self.db.execute("PRAGMA table_info(diagnostics)")}
+            for name, kind in (("tool_type", "TEXT"), ("outcome", "TEXT"), ("finish_reason", "TEXT"),
+                               ("agent_state", "TEXT"), ("pending_operations", "INTEGER"),
+                               ("compacted_exchanges", "INTEGER"), ("compacted_outputs", "INTEGER")):
+                if name not in diagnostic_columns:
+                    self.db.execute(f"ALTER TABLE diagnostics ADD COLUMN {name} {kind}")
             with self.db:
                 self.db.execute("""INSERT OR IGNORE INTO operations
                     (call_id,conversation_id,name,schema_version,state,source,result_kind,created_at)
@@ -88,7 +104,7 @@ class Journal:
                          WHEN result_kind IN ('exit_nonzero','reported_failure') THEN 'FAILED'
                          ELSE 'ACKNOWLEDGED' END,
                     'legacy_migration',result_kind,created_at FROM intents""")
-                self.db.execute("PRAGMA user_version=3")
+                self.db.execute("PRAGMA user_version=4")
 
     def _transition(self, call_id, state):
         row = self.db.execute("SELECT state FROM operations WHERE call_id=?", (call_id,)).fetchone()
@@ -138,6 +154,7 @@ class Journal:
         with self.lock, self.db:
             # BEGIN IMMEDIATE serializes the check and write across processes.
             self.db.execute("BEGIN IMMEDIATE")
+            self.guard_uncertain_replay(calls, conversation_id, execution_scope)
             if request_key is not None:
                 self.ensure_new_turn(request_key, conversation_id, execution_scope=execution_scope)
                 self.db.execute("INSERT INTO dispatch_requests(request_key,conversation_id) VALUES(?,?)", (request_key, conversation_id))
@@ -148,9 +165,36 @@ class Journal:
                                 (call.id, conversation_id, call.name, call.schema_hash, "OFFERED_UNCONFIRMED"))
                 self.db.execute("INSERT INTO operations(call_id,conversation_id,name,schema_version,state,source,execution_scope) VALUES(?,?,?,?,?,?,?)",
                                 (call.id, conversation_id, call.name, call.schema_hash, "PROPOSED", "gateway", execution_scope))
+                self.db.execute("UPDATE operations SET argument_hash=? WHERE call_id=?", (argument_fingerprint(call.arguments), call.id))
                 self.db.execute("INSERT INTO operation_events(call_id,state) VALUES(?,?)", (call.id, "PROPOSED"))
                 self._transition(call.id, "VALIDATED")
                 self._transition(call.id, "DISPATCHED")
+
+    def guard_uncertain_replay(self, calls, conversation_id, execution_scope):
+        # Read/search checks are client-owned too. Only block repeated mutations,
+        # never schedule a verification tool or invent a new client request.
+        for call in calls:
+            if call.name.lower() in {"read", "glob", "grep", "list", "search"}:
+                continue
+            row = self.db.execute("""SELECT 1 FROM operations WHERE conversation_id IS ? AND execution_scope=? AND name=?
+                AND (argument_hash=? OR argument_hash IS NULL)
+                AND ((state='ACKNOWLEDGED' AND (result_kind='unknown' OR result_kind IS NULL))
+                     OR state IN ('EXECUTION_UNKNOWN','TIMED_OUT','CANCELLED')) LIMIT 1""",
+                (conversation_id, execution_scope, call.name, argument_fingerprint(call.arguments))).fetchone()
+            if row:
+                raise BridgeError("EXECUTION_UNKNOWN", "A matching mutation has an uncertain outcome; verify actual client state and supply a confirmed receipt before repeating it", 409)
+
+    def continuity(self, conversation_id, execution_scope="main_turn"):
+        with self.lock:
+            rows = self.db.execute("SELECT state,result_kind FROM operations WHERE conversation_id IS ? AND execution_scope=?",
+                                   (conversation_id, execution_scope)).fetchall()
+        pending = sum(state in ("DISPATCHED", "EXECUTION_UNKNOWN") for state, _ in rows)
+        unknown = sum(state == "EXECUTION_UNKNOWN" or (state == "ACKNOWLEDGED" and kind in (None, "unknown")) for state, kind in rows)
+        return {"pending_operations": pending, "unknown_outcomes": unknown}
+
+    def safe_report(self):
+        with self.lock:
+            return report_events(self.db)
 
     def record_client_request(self, request_id, client_request_id, conversation_id, execution_scope, query_source, tool_count):
         # Only correlation metadata; never headers, prompts or argument bodies.
@@ -192,6 +236,15 @@ class Journal:
                             (conversation_id, call_id))
             self.db.execute("UPDATE operations SET conversation_id=COALESCE(conversation_id, ?) WHERE call_id=?", (conversation_id, call_id))
             if status in ("RESULT_RECEIVED", "VERIFIED", "FAILED", "UNVERIFIED_CLIENT_RESULT"):
+                operation = self.operation(call_id)
+                if (status == "RESULT_RECEIVED" and operation is not None and operation["status"] == "ACKNOWLEDGED"
+                        and operation["result_kind"] == "unknown" and result_kind in _RESULT_STATES):
+                    # A later genuine structured receipt may resolve an earlier
+                    # text-only result. Existing confirmed outcomes are immutable.
+                    self._transition(call_id, _RESULT_STATES[result_kind])
+                    self.db.execute("UPDATE intents SET result_kind=? WHERE call_id=?", (result_kind, call_id))
+                    self.db.execute("UPDATE operations SET result_kind=? WHERE call_id=?", (result_kind, call_id))
+                    return True
                 return False
             if status != "OFFERED_UNCONFIRMED":
                 raise BridgeError("INVALID_RECEIPT_STATE", "Result cannot be accepted in current state", 409)
@@ -205,7 +258,7 @@ class Journal:
                 self.db.execute("UPDATE operations SET result_kind=? WHERE call_id=?", (result_kind, call_id))
             return True
 
-    def restore_intent_from_history(self, call_id: str, name: str, conversation_id=None):
+    def restore_intent_from_history(self, call_id: str, name: str, conversation_id=None, argument_hash=None):
         """Rebuild metadata for a call visible in the *preceding assistant transcript*.
 
         The history proves only that the client presented a tool proposal, not
@@ -219,6 +272,8 @@ class Journal:
                 "SELECT conversation_id,name,status FROM intents WHERE call_id=?", (call_id,)
             ).fetchone()
             if row:
+                if argument_hash is not None:
+                    self.db.execute("UPDATE operations SET argument_hash=COALESCE(argument_hash,?) WHERE call_id=?", (argument_hash, call_id))
                 owner, known_name, status = row
                 if owner is not None and conversation_id is not None and owner != conversation_id:
                     raise BridgeError("CROSS_CONVERSATION_RECEIPT", "Result belongs to another conversation", 409)
@@ -247,6 +302,7 @@ class Journal:
             )
             self.db.execute("INSERT INTO operations(call_id,conversation_id,name,schema_version,state,source) VALUES(?,?,?,?,?,?)",
                             (call_id, conversation_id, name, "recovered-from-client-history", "DISPATCHED", "client_history"))
+            self.db.execute("UPDATE operations SET argument_hash=? WHERE call_id=?", (argument_hash, call_id))
             return True
 
     def accept_unmatched_client_result(self, call_id: str, conversation_id=None, result_kind="unknown"):
@@ -273,7 +329,7 @@ class Journal:
                             (call_id, conversation_id, "(unmatched)", "unknown", "EXECUTION_UNKNOWN", "unmatched_client_result", result_kind))
             return True
 
-    def reconcile_client_history(self, messages: list[dict], conversation_id=None, classify_result=None):
+    def reconcile_client_history(self, messages: list[dict], conversation_id=None, classify_result=None, request_id=None):
         """Recover call/result relationships from the *original*, un-compacted chat.
 
         Chronological ordering matters: an assistant tool_call must precede its
@@ -281,7 +337,7 @@ class Journal:
         available, the tool output remains client-provided/unverified; no 409 is
         produced just because the local SQLite ledger was reset or relocated.
         """
-        observed = {}
+        observed, fingerprints = {}, {}
         recovered = unmatched = receipts = duplicates = 0
         for message in messages:
             role = message.get("role")
@@ -297,6 +353,12 @@ class Journal:
                         if call_id in observed and observed[call_id] != name:
                             raise BridgeError("TOOL_CALL_ID_CONFLICT", "Conflicting tool call IDs in transcript", 409)
                         observed[call_id] = name
+                        try:
+                            arguments = loads(function.get("arguments", ""))
+                            if isinstance(arguments, dict):
+                                fingerprints[call_id] = argument_fingerprint(arguments)
+                        except (ValueError, TypeError, RecursionError):
+                            pass
                 continue
             if role not in ("tool", "function"):
                 continue
@@ -309,12 +371,17 @@ class Journal:
             if not isinstance(call_id, str) or not call_id or len(call_id) > 256:
                 raise BridgeError("TOOL_RECEIPT_MISSING_ID", "Tool result lacks a valid tool_call_id", 409)
             if call_id in observed:
-                recovered += self.restore_intent_from_history(call_id, observed[call_id], conversation_id)
-            result_kind = classify_result(message) if classify_result else "unknown"
+                recovered += self.restore_intent_from_history(call_id, observed[call_id], conversation_id, fingerprints.get(call_id))
+            operation = self.operation(call_id)
+            name = observed.get(call_id) or (operation["name"] if operation else "(unmatched)")
+            result_kind = classify_result({**message, "name": name}) if classify_result else "unknown"
             try:
                 new_result = self.receive(call_id, conversation_id, result_kind)
                 receipts += int(new_result)
                 duplicates += int(not new_result)
+                if new_result and request_id:
+                    self.diagnostic(request_id, "tool_receipt_received", tool_type=tool_type(name))
+                    self.diagnostic(request_id, "tool_outcome_classified", tool_type=tool_type(name), outcome=result_kind)
             except BridgeError as exc:
                 if exc.code != "ORPHAN_TOOL_RESULT":
                     raise
@@ -367,10 +434,13 @@ class Journal:
             ).fetchall()
         return [dict(zip(keys, row)) for row in rows]
 
-    def diagnostic(self, request_id, phase, error_code=None):
+    def diagnostic(self, request_id, phase, error_code=None, **fields):
+        fields = safe_fields(fields)
         with self.lock, self.db:
-            self.db.execute("INSERT INTO diagnostics(request_id,phase,error_code) VALUES(?,?,?)",
-                            (request_id, phase, error_code))
+            keys = ["request_id", "phase", "error_code", *fields]
+            self.db.execute("INSERT INTO diagnostics(" + ",".join(keys) + ") VALUES(" + ",".join("?" for _ in keys) + ")",
+                            (request_id, phase, error_code, *fields.values()))
+        log_event(request_id, phase, error_code, **fields)
 
     def latest(self, limit=8):
         with self.lock:

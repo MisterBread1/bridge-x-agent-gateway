@@ -12,7 +12,9 @@ Bridge X translates provider responses into Chat Completions messages, validates
 
 [Alternative: execution ledger](docs/assets/bridge-x-demo-ledger.gif) · [Demo scope and creation](docs/DEMO.md)
 
-**Current version: 12.12.3 · Status: stable for the verified local gateway workflow · Python: 3.11+**
+**Candidate version: 12.13.0 · Published stable: 12.12.3 · Python: 3.11+**
+
+This branch adds agent-continuity repairs, offline Doctor and sanitized reports. The [investigation](docs/AGENT_CONTINUITY.md) distinguishes reproduced protocol defects from the still-unconfirmed cause of the original live early stop. A new release is withheld pending that evidence.
 
 [Quick Start](#quick-start) · [Configuration](docs/CONFIGURATION.md) · [Architecture](docs/ARCHITECTURE.md) · [File guide](docs/FILE_GUIDE.md) · [Testing](docs/TESTING.md) · [Contributing](CONTRIBUTING.md)
 
@@ -67,7 +69,7 @@ The **fake** provider is an offline protocol simulator; it requires no account o
 Invoke-RestMethod http://127.0.0.1:18787/health
 ```
 
-Expect `status: ok`, version `12.12.3`, and provider `fake`. The Python CLI never installs software; `start.bat` runs the pinned requirements installer when its dependency import check fails. An existing environment that passes that check is reused without verifying every package version.
+Expect `status: ok`, version `12.13.0` from this candidate, and provider `fake`. The Python CLI never installs software; `start.bat` runs the pinned requirements installer when its dependency import check fails. An existing environment that passes that check is reused without verifying every package version.
 
 ### Send a local API request
 
@@ -164,6 +166,17 @@ Before SSE starts, failures use an HTTP error response. After streaming headers 
 The HTTP check starts its own temporary Uvicorn server on a free loopback port and closes it. The CSS check uses a **scripted native upstream fixture**, executes real Read → Edit → Read → Python/Bash-equivalent actions, checks exact bytes and a neighboring file, and returns receipts through the gateway. It is not an installed-ZCode or live-Molab test. Both need test dependencies. `LIVE_CHECK.py` is retained for test compatibility; invoking it explicitly contacts the configured local live gateway and is not part of offline acceptance.
 
 ## Troubleshooting
+
+Start with safe local diagnostics:
+
+```powershell
+python -m bridge_x doctor
+python -m bridge_x doctor --report bridge-x-doctor-report.json
+```
+
+Doctor checks local setup without contacting your provider, starting tools or printing private values. `--network` explicitly probes only the local `/health` endpoint. See [Doctor and Issue reports](docs/DOCTOR.md).
+
+If an agent stops after a tool, a provider `stop` is not proof that the task is complete. Inspect `x_bridge_x` continuity metadata and `/diagnostics/report`, preserve actual tool receipts, and verify uncertain effects before retrying. The [continuity guide](docs/AGENT_CONTINUITY.md) explains the Bash/history defect and recovery limits.
 
 | Problem | Diagnosis and action |
 |---|---|

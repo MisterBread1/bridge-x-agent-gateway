@@ -24,7 +24,7 @@ Environment variables are read by `Settings.from_env()`. `.env` is not loaded. P
 
 Numeric time settings must be finite and positive. `BRIDGEX_LOCAL_KEY` authenticates the local gateway; it is not a Molab token. Do not put unsupported fields in the example and expect them to affect the application.
 
-CLI options: `--provider`, `--port` (default 8787, loopback only, zero chooses a free port), and `--check-config` (syntax only; no remote access or SQLite creation).
+CLI options: optional `doctor` command with `--network` (local health only) and `--report` (new sanitized JSON file); `--provider`, `--port` (default 8787, loopback only, zero chooses a free port), and `--check-config` (syntax only; no remote access or SQLite creation).
 
 ## Local HTTP endpoints
 
@@ -35,6 +35,7 @@ CLI options: `--provider`, `--port` (default 8787, loopback only, zero chooses a
 | `GET /v1/models` | Yes | Configured model identifier. |
 | `GET /v1/capabilities` | Yes | Declared protocol and observed native capability. |
 | `POST /v1/chat/completions` | Yes | OpenAI-compatible chat, native calls, and SSE. |
+| `GET /diagnostics/report` | Yes | Strictly allowlisted shareable lifecycle timeline; no commands, content, session IDs or configured URLs. |
 | `GET /diagnostics` | Yes | Bounded sanitized metadata and pacing status. |
 | `GET /v1/operations/{call_id}` | Yes | Operation state, not a request to execute it. |
 | `POST /v1/operations/{call_id}/verification` | Yes | Compares client-supplied expected/observed digests, checks owner/state, and records `VERIFIED`. No independent filesystem check. |
@@ -52,7 +53,7 @@ The server never runs tools itself. Tool schemas, results, and transcript text a
 | `x-request-id` | Optional sanitized correlation ID for metadata; not an idempotency key. |
 | `role: tool`, `tool_call_id` | Actual client result paired with the gateway-returned call ID. Include the preceding assistant call in history when available. |
 
-The schema engine replaces upstream IDs with fresh local call IDs. Return the local ID exactly. Receipts with explicit boolean `success` or integer `exit_code` can establish reported outcomes; stdout alone cannot. An unmatched result is retained as unverified. See [architecture and recovery](ARCHITECTURE.md#tool-ids-and-client-receipts).
+The schema engine replaces upstream IDs with fresh local call IDs. Return the local ID exactly. Receipts with explicit boolean `success` or integer `exit_code` can establish reported outcomes; stdout alone cannot. Recognized shell tools require a real exit code for success. Successful JSON replies and final SSE chunks add optional `x_bridge_x` metadata; see [continuity states](AGENT_CONTINUITY.md#public-continuity-diagnostics). A stop never proves task completion. An unmatched result is retained as unverified. See [architecture and recovery](ARCHITECTURE.md#tool-ids-and-client-receipts).
 
 ## Error responses
 

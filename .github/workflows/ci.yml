@@ -42,6 +42,10 @@ jobs:
         run: python LOCAL_HTTP_ACCEPTANCE.py
       - name: Check scripted native tools with real temporary files
         run: python -m tools.native_css_acceptance
+      - name: Check long native workflow and SQLite restart continuity
+        run: python -m tools.continuity_acceptance
+      - name: Check offline doctor without using operator configuration
+        run: python -m bridge_x doctor --provider fake --port 0
       - name: Build complete release and audit its contents
         shell: pwsh
         run: |
@@ -50,3 +54,16 @@ jobs:
           $version = python -c "from bridge_x import __version__; print(__version__)"
           python -m tools.audit_release "artifacts/bridge-x-$version-complete.zip"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify complete archive in a clean environment
+        shell: pwsh
+        run: |
+          $version = python -c "from bridge_x import __version__; print(__version__)"
+          python -m tools.verify_release "artifacts/bridge-x-$version-complete.zip" --work-dir "$env:RUNNER_TEMP/bridge-x-pr-zip-verification"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Upload verified review archive and checksums
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: bridge-x-continuity-candidate
+          path: artifacts/*
+          if-no-files-found: error
+          retention-days: 14

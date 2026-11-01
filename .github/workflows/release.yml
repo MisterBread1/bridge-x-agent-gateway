@@ -43,6 +43,8 @@ jobs:
       - run: python -m pytest -q -ra
       - run: python LOCAL_HTTP_ACCEPTANCE.py
       - run: python -m tools.native_css_acceptance
+      - run: python -m tools.continuity_acceptance
+      - run: python -m bridge_x doctor --provider fake --port 0
       - name: Build and audit complete archive
         shell: pwsh
         run: |

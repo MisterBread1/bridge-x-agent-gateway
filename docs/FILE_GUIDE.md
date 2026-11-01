@@ -2,7 +2,7 @@
 
 [README](../README.md) · [Architecture](ARCHITECTURE.md) · [Development](DEVELOPMENT.md) · [Testing](TESTING.md)
 
-This inventory covers **all 98 tracked files in the documentation branch**, including hidden configuration and GitHub workflows. It excludes ignored/private/generated working state. Every Python file was inspected; symbols/imports below reflect its implementation, including lazy imports. Empty package markers are listed explicitly.
+This inventory covers **all 105 tracked files in this checkout**, including hidden configuration and GitHub workflows. It excludes ignored/private/generated working state. Every Python file was inspected; symbols/imports below reflect its implementation, including lazy imports. Empty package markers are listed explicitly.
 
 ## Complete tracked tree
 
@@ -33,6 +33,7 @@ bridge-x-agent-gateway/
 │   ├── config.py
 │   ├── context.py
 │   ├── coordinator.py
+│   ├── doctor.py
 │   ├── errors.py
 │   ├── execution_scope.py
 │   ├── gateway.py
@@ -41,6 +42,7 @@ bridge-x-agent-gateway/
 │   ├── molab_native.py
 │   ├── molab_provider.py
 │   ├── molab_runtime.py
+│   ├── observability.py
 │   ├── providers.py
 │   ├── rate_control.py
 │   ├── receipts.py
@@ -55,12 +57,14 @@ bridge-x-agent-gateway/
 │   ├── __init__.py
 │   └── runner.py
 ├── docs/
+│   ├── AGENT_CONTINUITY.md
 │   ├── ARCHITECTURE.md
 │   ├── COMMUNITY_SETUP.md
 │   ├── CONFIGURATION.md
 │   ├── CONTENTS_AUDIT.md
 │   ├── DEMO.md
 │   ├── DEVELOPMENT.md
+│   ├── DOCTOR.md
 │   ├── DOCUMENTATION_QA.md
 │   ├── FILE_GUIDE.md
 │   ├── GITHUB.md
@@ -82,7 +86,9 @@ bridge-x-agent-gateway/
 │   ├── test_agent_recovery.py
 │   ├── test_audit_hardening.py
 │   ├── test_command_engine_128.py
+│   ├── test_continuity.py
 │   ├── test_dispatch_root_cause_12103.py
+│   ├── test_doctor.py
 │   ├── test_execution_branches.py
 │   ├── test_gateway.py
 │   ├── test_journal_context.py
@@ -112,6 +118,7 @@ bridge-x-agent-gateway/
     ├── audit_release.py
     ├── build_release.py
     ├── configure.py
+    ├── continuity_acceptance.py
     ├── native_css_acceptance.py
     ├── render_demo.py
     ├── requirements-media.txt
@@ -140,7 +147,7 @@ CLI entry point for `python -m bridge_x`. Reads `Settings.from_env()`, checks Mo
 
 **Key symbols:** `main`.
 
-**Internal relationships:** `bridge_x.__init__`, `bridge_x.config`, `bridge_x.errors`, `bridge_x.gateway`, `bridge_x.molab_provider`, `bridge_x.molab_runtime`.
+**Internal relationships:** `bridge_x.__init__`, `bridge_x.config`, `bridge_x.doctor`, `bridge_x.errors`, `bridge_x.gateway`, `bridge_x.molab_provider`, `bridge_x.molab_runtime`, `bridge_x.observability`.
 
 ### `bridge_x/config.py`
 
@@ -160,7 +167,7 @@ FastAPI request boundary and response orchestration. `create_app()` wires settin
 
 **Key symbols:** `create_app`.
 
-**Internal relationships:** `bridge_x.__init__`, `bridge_x.capabilities`, `bridge_x.config`, `bridge_x.coordinator`, `bridge_x.errors`, `bridge_x.execution_scope`, `bridge_x.journal`, `bridge_x.json_utils`, `bridge_x.providers`, `bridge_x.receipts`, `bridge_x.schemas`, `bridge_x.sse`, `bridge_x.tools`.
+**Internal relationships:** `bridge_x.__init__`, `bridge_x.capabilities`, `bridge_x.config`, `bridge_x.coordinator`, `bridge_x.errors`, `bridge_x.execution_scope`, `bridge_x.journal`, `bridge_x.json_utils`, `bridge_x.observability`, `bridge_x.providers`, `bridge_x.receipts`, `bridge_x.schemas`, `bridge_x.sse`, `bridge_x.tools`.
 
 ### `bridge_x/coordinator.py`
 
@@ -180,7 +187,7 @@ Bound historical context without corrupting executable input. `compact()` copies
 
 **Key symbols:** `compact`.
 
-**Internal relationships:** `bridge_x.errors`.
+**Internal relationships:** `bridge_x.errors`, `bridge_x.json_utils`.
 
 ### `bridge_x/execution_scope.py`
 
@@ -198,9 +205,9 @@ Foreground/background coordination identities. `resolve_execution_scope()` retur
 
 SQLite operation/receipt ledger and sanitized diagnostic store. `Journal` creates/migrates tables, records operation transitions and dispatch fingerprints atomically, reconciles original client call/result history, checks ownership, accepts explicit client digest verification, persists pacing metadata, and closes connections. See architecture for exact state semantics.
 
-**Key symbols:** `Journal`.
+**Key symbols:** `argument_fingerprint`, `Journal`.
 
-**Internal relationships:** `bridge_x.errors`, `bridge_x.tool_models`.
+**Internal relationships:** `bridge_x.errors`, `bridge_x.json_utils`, `bridge_x.observability`, `bridge_x.tool_models`.
 
 ### `bridge_x/receipts.py`
 
@@ -246,11 +253,11 @@ Molab configuration, payload adaptation, event decoding, and generation transpor
 
 [Open source](../bridge_x/molab_native.py) · Category: runtime code · User edit: **No**.
 
-Native frontend tool definitions, history, and input assembly. `native_tools()` preserves schemas; `native_messages()` pairs actual client results and archives old completed arguments. `NativeToolAssembler` requires valid start/delta/available sequences, agreement with completed input, and rejects notebook-side output events. The provider consumes it before shared schema validation.
+Native frontend tool definitions, history, and input assembly. Preserves every retained historical native input/output pair and call ID; context bounding happens before serialization. NativeToolAssembler validates complete events before shared schema enforcement.
 
 **Key symbols:** `native_tools`, `native_messages`, `NativeToolAssembler`.
 
-**Internal relationships:** `bridge_x.errors`, `bridge_x.json_utils`, `bridge_x.molab_provider`, `bridge_x.providers`, `bridge_x.tools`.
+**Internal relationships:** `bridge_x.errors`, `bridge_x.json_utils`, `bridge_x.molab_provider`, `bridge_x.providers`, `bridge_x.receipts`, `bridge_x.tools`.
 
 ### `bridge_x/molab_runtime.py`
 
@@ -362,6 +369,26 @@ Sanitized typed failure envelope and retry timing. `BridgeError.public()` return
 
 **Internal relationships:** Package metadata consumed by CLI, gateway, tests, and release tooling.
 
+### `bridge_x/doctor.py`
+
+[Open source](../bridge_x/doctor.py) · Category: runtime code · User edit: **No**.
+
+Read-only operator diagnostics and sanitized report creation. Checks dependency pins, configuration syntax, authorization defaults, port availability and existing SQLite without starting providers or migrating state; an explicit option probes only local health.
+
+**Key symbols:** `inspect`, `run`.
+
+**Internal relationships:** `bridge_x.__init__`, `bridge_x.config`, `bridge_x.errors`, `bridge_x.molab_provider`, `bridge_x.observability`.
+
+### `bridge_x/observability.py`
+
+[Open source](../bridge_x/observability.py) · Category: runtime code · User edit: **No**.
+
+Strict lifecycle event and report allowlists. Maps tool/outcome categories, hashes correlation identifiers, configures a dedicated safe event logger, and filters legacy/current diagnostic rows for Issue sharing.
+
+**Key symbols:** `tool_type`, `safe_fields`, `safe_code`, `safe_request`, `log_event`, `configure_logging`, `report_events`.
+
+**Internal relationships:** Package metadata consumed by CLI, gateway, tests, and release tooling.
+
 ## Test modules and fixtures
 
 Category: **tests** for every row below. Ordinary users do **not** edit these for setup; contributors change/add tests with related behavior. Test functions are pytest entry points, not an application API. Relative helper imports are listed explicitly; runtime relationships are captured in the same column. All upstream transport fixtures are simulated.
@@ -398,6 +425,8 @@ Category: **tests** for every row below. Ordinary users do **not** edit these fo
 | [`tests/test_sse.py`](../tests/test_sse.py) | Incremental multiline/comments/CRLF/UTF-8 parsing, EOF truncation, limits, invalid Unicode, generic text/tool/terminal decoding, DONE semantics, and safe upstream errors. | `bridge_x.errors`, `bridge_x.providers`, `bridge_x.sse` |
 | [`tests/test_stress.py`](../tests/test_stress.py) | Synthetic 55-tool large request, 100,000 small SSE frames, and safe compaction of a 500-message tool history; correctness checks rather than throughput measurements. | `bridge_x.config`, `bridge_x.context`, `bridge_x.gateway`, `bridge_x.sse` |
 | [`tests/test_tools.py`](../tests/test_tools.py) | Strict JSON/native intent schema, exact tool/choice/parallel rules, no fenced-JSON scavenging, malformed/partial arguments, duplicate/bad declarations, byte and depth limits. | `bridge_x.errors`, `bridge_x.tools` |
+| [`tests/test_continuity.py`](../tests/test_continuity.py) | Baseline completed-history/echo failure, seven shell outcomes, uncertain replay guards, schema-3 migration, typed compaction/pending input, valid/unknown final status, terminal failures, eight-turn real-file JSON/SSE workflow and actual ASGI disconnect cancellation. | `bridge_x.config`, `bridge_x.context`, `bridge_x.errors`, `bridge_x.gateway`, `bridge_x.journal`, `bridge_x.molab_native`, `bridge_x.providers`, `bridge_x.receipts`, `bridge_x.schemas`, `bridge_x.tool_models`, `tests.conftest`, `tools.continuity_acceptance` |
+| [`tests/test_doctor.py`](../tests/test_doctor.py) | Read-only local diagnosis, no provider construction, busy-port handling, old SQLite inspection, missing server dependencies, private-value exclusion from logs/reports, authenticated timeline and explicit local-only health probe. | `bridge_x`, `bridge_x.config`, `bridge_x.doctor`, `bridge_x.gateway`, `bridge_x.journal`, `bridge_x.providers`, `tests.test_continuity` |
 
 ## Test support and manual tooling
 
@@ -497,6 +526,16 @@ Package marker for `python -m tools...` helpers. No gateway startup side effect.
 
 **Internal relationships:** `bridge_x`, `bridge_x.config`.
 
+### `tools/continuity_acceptance.py`
+
+[Open source](../tools/continuity_acceptance.py) · Category: Tooling / offline acceptance · User edit: **No**.
+
+Eight-turn native wire fixture; real temporary CSS edits, two empty-output fixed Python executions, unchanged neighbor, all paired receipts and eight journal reopens in JSON/SSE. No live provider or installed client.
+
+**Public symbols:** `decode`, `run_acceptance`, `main`.
+
+**Internal relationships:** `bridge_x.config`, `bridge_x.gateway`, `bridge_x.sse`, `tools.native_css_acceptance`.
+
 ## Configuration, documentation, and release files
 
 | Exact path | Category and responsibility | Relationship / questions answered | Should an ordinary user edit it? |
@@ -534,6 +573,8 @@ Package marker for `python -m tools...` helpers. No gateway startup side effect.
 | [`docs/TESTING.md`](../docs/TESTING.md) | **Documentation.** Maps all test groups, complete/focused commands, HTTP/CSS acceptance, Windows checks, external-access commands, and evidence provenance. | Connects fixtures and behaviors to tests; distinguishes simulated transports from installed-client/live work. | Contributors follow it; maintainers update with new behaviors/tests. |
 | [`docs/VALIDATION.md`](../docs/VALIDATION.md) | **Documentation / historical evidence.** Preserves earlier clean-install public-release observations, failures and fixes during preparation, scanner scope/false positive, and platform warnings. | Links current QA separately; its external original report is not falsely presented as tracked. | Users/reviewers read; maintainers preserve attribution. |
 | [`FILE_SHA256SUMS.txt`](../FILE_SHA256SUMS.txt) | **Generated verification manifest.** SHA-256 of the current tracked repository files except this manifest itself. | Refreshed for this documentation checkout; the frozen ZIP has its own original internal manifest. Builder output has a narrower allowlist. | Do not hand-edit; maintainers regenerate after final file selection. |
+| [`docs/AGENT_CONTINUITY.md`](../docs/AGENT_CONTINUITY.md) | **Documentation / investigation.** Documents the exact incident chain, three failing baseline checks, narrow confirmed defect, remaining live hypotheses, history/outcome/recovery contracts and publication gate. | Distinguishes deterministic protocol evidence from unproved external model reasoning. | Reviewers and operators read; maintainers append observed evidence. |
+| [`docs/DOCTOR.md`](../docs/DOCTOR.md) | **Documentation / diagnostics.** Explains doctor checks, explicit local-only network option, non-overwriting sanitized report and safe recovery guidance. | Operator-facing CLI and authenticated report endpoint reference. | Users follow instructions; maintainers update with behavior changes. |
 
 ## Runtime module dependencies
 
@@ -542,19 +583,21 @@ Direct internal imports from the actual AST, including imports inside functions.
 | Importing file | Direct project imports |
 |---|---|
 | `bridge_x/__init__.py` | None |
-| `bridge_x/__main__.py` | `bridge_x.__init__`, `bridge_x.config`, `bridge_x.errors`, `bridge_x.gateway`, `bridge_x.molab_provider`, `bridge_x.molab_runtime` |
+| `bridge_x/__main__.py` | `bridge_x.__init__`, `bridge_x.config`, `bridge_x.doctor`, `bridge_x.errors`, `bridge_x.gateway`, `bridge_x.molab_provider`, `bridge_x.molab_runtime`, `bridge_x.observability` |
 | `bridge_x/capabilities.py` | `bridge_x.schemas` |
 | `bridge_x/config.py` | None |
-| `bridge_x/context.py` | `bridge_x.errors` |
+| `bridge_x/context.py` | `bridge_x.errors`, `bridge_x.json_utils` |
 | `bridge_x/coordinator.py` | `bridge_x.context`, `bridge_x.journal`, `bridge_x.receipts`, `bridge_x.schemas` |
+| `bridge_x/doctor.py` | `bridge_x.__init__`, `bridge_x.config`, `bridge_x.errors`, `bridge_x.molab_provider`, `bridge_x.observability` |
 | `bridge_x/errors.py` | None |
 | `bridge_x/execution_scope.py` | None |
-| `bridge_x/gateway.py` | `bridge_x.__init__`, `bridge_x.capabilities`, `bridge_x.config`, `bridge_x.coordinator`, `bridge_x.errors`, `bridge_x.execution_scope`, `bridge_x.journal`, `bridge_x.json_utils`, `bridge_x.providers`, `bridge_x.receipts`, `bridge_x.schemas`, `bridge_x.sse`, `bridge_x.tools` |
-| `bridge_x/journal.py` | `bridge_x.errors`, `bridge_x.tool_models` |
+| `bridge_x/gateway.py` | `bridge_x.__init__`, `bridge_x.capabilities`, `bridge_x.config`, `bridge_x.coordinator`, `bridge_x.errors`, `bridge_x.execution_scope`, `bridge_x.journal`, `bridge_x.json_utils`, `bridge_x.observability`, `bridge_x.providers`, `bridge_x.receipts`, `bridge_x.schemas`, `bridge_x.sse`, `bridge_x.tools` |
+| `bridge_x/journal.py` | `bridge_x.errors`, `bridge_x.json_utils`, `bridge_x.observability`, `bridge_x.tool_models` |
 | `bridge_x/json_utils.py` | None |
-| `bridge_x/molab_native.py` | `bridge_x.errors`, `bridge_x.json_utils`, `bridge_x.molab_provider`, `bridge_x.providers`, `bridge_x.tools` |
+| `bridge_x/molab_native.py` | `bridge_x.errors`, `bridge_x.json_utils`, `bridge_x.molab_provider`, `bridge_x.providers`, `bridge_x.receipts`, `bridge_x.tools` |
 | `bridge_x/molab_provider.py` | `bridge_x.errors`, `bridge_x.json_utils`, `bridge_x.molab_native`, `bridge_x.molab_runtime`, `bridge_x.providers`, `bridge_x.rate_control`, `bridge_x.sse`, `bridge_x.structured_intent`, `bridge_x.tools` |
 | `bridge_x/molab_runtime.py` | `bridge_x.errors` |
+| `bridge_x/observability.py` | None |
 | `bridge_x/providers.py` | `bridge_x.errors`, `bridge_x.json_utils`, `bridge_x.molab_provider`, `bridge_x.sse` |
 | `bridge_x/rate_control.py` | `bridge_x.errors` |
 | `bridge_x/receipts.py` | `bridge_x.json_utils` |

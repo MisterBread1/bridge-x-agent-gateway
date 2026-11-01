@@ -23,7 +23,7 @@ class ToolCoordinator:
         self.journal = journal
         self.max_context_chars = max_context_chars
 
-    def prepare(self, req: ChatRequest, messages: list[dict], execution_scope="main_turn") -> AgentTurn:
+    def prepare(self, req: ChatRequest, messages: list[dict], execution_scope="main_turn", request_id=None) -> AgentTurn:
         # Stream/non-stream retries represent the same operation. Full content
         # is hashed and is never stored in the dispatch ledger.
         # Transport/SDK options may change on a retry. Only the actual agent
@@ -38,7 +38,7 @@ class ToolCoordinator:
         key = (hashlib.sha256(json.dumps(basis, ensure_ascii=False, sort_keys=True,
                                         separators=(",", ":")).encode("utf-8")).hexdigest()
                if req.conversation_id is not None or req.idempotency_key else None)
-        receipts = self.journal.reconcile_client_history(messages, req.conversation_id, classify_result)
+        receipts = self.journal.reconcile_client_history(messages, req.conversation_id, classify_result, request_id)
         if execution_scope == "main_turn" and key is not None:
             # Preserve the previous release's exact-request guard across the
             # fingerprint migration; a completed old side effect must not be

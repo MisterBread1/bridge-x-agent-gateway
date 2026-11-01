@@ -42,9 +42,8 @@ def main():
         assert all(t["source"] == "frontend" for t in posted["tools"])
         if index:
             outputs = [p for m in posted["messages"] for p in m["parts"] if p.get("state") == "output-available"]
-            # The runtime intentionally archives older completed calls as
-            # non-executable history; the latest two cycles stay native.
-            assert len(outputs) == min(index, 2)
+            # All retained complete pairs remain native protocol data.
+            assert len(outputs) == index
             assert outputs[-1]["output"]["success"] is True
         if index == len(steps):
             events = [{"type": "text-delta", "delta": "Verified"}, {"type": "finish", "finishReason": "stop"}]

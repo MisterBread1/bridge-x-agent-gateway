@@ -175,7 +175,7 @@ def test_scope_survives_restart_and_original_pending_operations_remain_protected
     try:
         journal.ensure_new_turn("main", "session")
         assert journal.operation("memory")["execution_scope"] == "project_memory_extract:one"
-        assert journal.db.execute("PRAGMA user_version").fetchone()[0] == 3
+        assert journal.db.execute("PRAGMA user_version").fetchone()[0] == 4
         with pytest.raises(BridgeError):
             journal.ensure_new_turn("same-branch", "session", execution_scope="project_memory_extract:one")
     finally:

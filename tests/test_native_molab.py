@@ -65,15 +65,17 @@ def test_native_history_pairs_executor_result_with_call_instead_of_user_prose():
     assert "<tool_result" not in json.dumps(messages)
 
 
-def test_older_completed_native_arguments_are_archived_but_latest_cycles_are_intact():
+def test_older_completed_native_cycles_keep_the_same_structured_provenance_as_recent_ones():
     history = [{"role": "user", "content": "goal"}]
     for i in range(4):
         history += [{"role": "assistant", "tool_calls": [{"id": f"c{i}", "function": {
             "name": "Write", "arguments": json.dumps({"path": "a", "content": f"private-source-{i}"})}}]},
             {"role": "tool", "tool_call_id": f"c{i}", "content": '{"success":true}'}]
     serialized = json.dumps(native_messages(request(), history, 2200))
-    assert "private-source-0" not in serialized and "private-source-1" not in serialized
-    assert "private-source-2" in serialized and "private-source-3" in serialized
+    for i in range(4):
+        assert f"private-source-{i}" in serialized
+    parts = [p for m in native_messages(request(), history, 2200) for p in m["parts"] if p["type"] == "dynamic-tool"]
+    assert len(parts) == 4 and all(p["state"] == "output-available" for p in parts)
 
 
 def test_native_stream_snapshot_and_argument_types_are_preserved():

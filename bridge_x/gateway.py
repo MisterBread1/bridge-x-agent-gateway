@@ -22,20 +22,22 @@ from .providers import make_provider, TextDelta, NativeToolDelta, Finish, Failed
 from .sse import sse_data, sse_error
 from . import __version__
 from .json_utils import loads as strict_loads, valid_value
+from .observability import tool_type
 
 
-def _response_object(req, request_id, text, calls, reason):
+def _response_object(req, request_id, text, calls, reason, continuity=None):
     message = {"role": "assistant", "content": None if calls else text}
     if calls:
         message["tool_calls"] = [c.openai() for c in calls]
-    return {"id": request_id, "object": "chat.completion", "created": int(time.time()),
+    return {"id": request_id, "object": "chat.completion", "created": int(time.time()), "x_bridge_x": continuity,
             "model": req.model, "choices": [{"index": 0, "message": message,
              "finish_reason": "tool_calls" if calls else reason or "stop"}]}
 
 
-def _sse_chunk(req, request_id, delta, reason=None):
+def _sse_chunk(req, request_id, delta, reason=None, continuity=None):
     return sse_data({"id": request_id, "object": "chat.completion.chunk", "created": int(time.time()),
-                     "model": req.model, "choices": [{"index": 0, "delta": delta, "finish_reason": reason}]})
+                     "model": req.model, **({"x_bridge_x": continuity} if continuity else {}),
+                     "choices": [{"index": 0, "delta": delta, "finish_reason": reason}]})
 
 
 def create_app(settings: Settings | None = None, provider=None, journal: Journal | None = None):
@@ -110,6 +112,12 @@ def create_app(settings: Settings | None = None, provider=None, journal: Journal
         model = "molab-glm" if settings.provider == "molab" else (settings.generic_model or "bridge-x-fake")
         return {"object": "list", "data": [{"id": model, "object": "model", "owned_by": "bridge-x"}]}
 
+    @app.get("/diagnostics/report")
+    async def diagnostic_report(authorization: str | None = Header(default=None)):
+        if not _auth(authorization, settings.local_api_key):
+            return JSONResponse({"error": "unauthorized"}, status_code=401)
+        return {"version": __version__, "events": journal.safe_report(), "task_completion_verified": False}
+
     @app.post("/v1/chat/completions")
     async def completions(request: Request, authorization: str | None = Header(default=None),
                           idempotency_key: str | None = Header(default=None),
@@ -126,6 +134,7 @@ def create_app(settings: Settings | None = None, provider=None, journal: Journal
                 return JSONResponse(BridgeError("REQUEST_TOO_LARGE", "Request exceeded input limit", 413).public(), status_code=413)
             chunks.append(data)
         request_id = "chatcmpl_" + uuid.uuid4().hex
+        journal.diagnostic(request_id, "request_received")
         try:
             raw = strict_loads(b"".join(chunks))
             if not valid_value(raw):
@@ -164,8 +173,12 @@ def create_app(settings: Settings | None = None, provider=None, journal: Journal
             # The ZCode transcript is the primary history of assistant tool
             # proposals and subsequent client results. Reconcile it BEFORE
             # context compaction and independently of local journal lifetime.
-            turn = coordinator.prepare(req, messages, execution_scope)
+            turn = coordinator.prepare(req, messages, execution_scope, request_id)
             receipt_stats = turn.receipts
+            if turn.context_budget["after_chars"] != turn.context_budget["before_chars"]:
+                journal.diagnostic(request_id, "history_compacted",
+                    compacted_exchanges=turn.context_budget["archived_completed_exchanges"],
+                    compacted_outputs=turn.context_budget["compacted_tool_outputs"])
             if receipt_stats["recovered"]:
                 journal.diagnostic(request_id, "tool_history_recovered", "RECEIPT_HISTORY_RECONCILED")
             if receipt_stats["unmatched"]:
@@ -175,6 +188,7 @@ def create_app(settings: Settings | None = None, provider=None, journal: Journal
                 provider.preflight()
         except BridgeError as exc:
             journal.diagnostic(request_id, "input_rejected", exc.code)
+            journal.diagnostic(request_id, "recovery_required", exc.code, agent_state="recovery_required")
             return JSONResponse(exc.public(), status_code=exc.status, headers=exc.headers())
         except (ValidationError, ValueError, UnicodeError, RecursionError):
             error = BridgeError("INVALID_REQUEST", "Invalid JSON or chat completion schema", 400)
@@ -193,6 +207,7 @@ def create_app(settings: Settings | None = None, provider=None, journal: Journal
             can_stream_text = not req.tools or req.tool_choice == "none"
             next_event_task = None
             try:
+                journal.diagnostic(request_id, "provider_generation_started", agent_state="awaiting_agent_decision")
                 while True:
                     remaining = settings.timeout_s - (time.monotonic() - started)
                     if remaining <= 0:
@@ -247,6 +262,8 @@ def create_app(settings: Settings | None = None, provider=None, journal: Journal
                         if output_size > settings.max_output_chars:
                             raise BridgeError("OUTPUT_TOO_LARGE", "Upstream exceeded output size limit", 502)
                         entry = native.setdefault(event.index, {"id": "", "function": {"name": "", "arguments": ""}})
+                        if event.name:
+                            journal.diagnostic(request_id, "native_tool_proposed", tool_type=tool_type(event.name))
                         if event.id:
                             entry["id"] += event.id
                         if event.name:
@@ -258,6 +275,7 @@ def create_app(settings: Settings | None = None, provider=None, journal: Journal
                         if finish is not None:
                             raise BridgeError("UPSTREAM_DUPLICATE_FINISH", "Upstream sent multiple finish events", 502)
                         finish = event.reason
+                        journal.diagnostic(request_id, "provider_finish_received", finish_reason=finish)
                         # Drain the provider to EOF: a later SSE error/abort
                         # must override a provisional terminal event.
                 if finish is None:
@@ -302,12 +320,22 @@ def create_app(settings: Settings | None = None, provider=None, journal: Journal
                     raise BridgeError("TOOL_REQUIRED", "Tool choice required a tool call", 422)
                 if calls:
                     coordinator.dispatch(turn, calls)
-                    journal.diagnostic(request_id, "tools_delivered")
-                else:
-                    journal.diagnostic(request_id, "completed")
-                yield ("complete", (text, calls, finish))
+                    for call in calls:
+                        journal.diagnostic(request_id, "tool_dispatched", tool_type=tool_type(call.name))
+                status = journal.continuity(req.conversation_id, execution_scope)
+                status.update(agent_state=("awaiting_tool_result" if calls else "execution_unknown" if status["unknown_outcomes"] else "model_stopped_unverified"),
+                              task_completion_verified=False,
+                              next_step="client_executes_tools" if calls else "client_decides_whether_to_continue")
+                yield ("complete", (text, calls, finish, status))
+            except asyncio.CancelledError:
+                journal.diagnostic(request_id, "client_cancelled", agent_state="client_cancelled",
+                                   pending_operations=journal.continuity(req.conversation_id, execution_scope)["pending_operations"])
+                raise
             except BridgeError as exc:
                 journal.diagnostic(request_id, "failed", exc.code)
+                journal.diagnostic(request_id, "upstream_failure", exc.code)
+                journal.diagnostic(request_id, "recovery_required", exc.code, agent_state="recovery_required",
+                                   pending_operations=journal.continuity(req.conversation_id, execution_scope)["pending_operations"])
                 yield ("error", exc)
             except Exception:
                 # Preserve privacy; the traceback is not returned to the client.
@@ -332,8 +360,10 @@ def create_app(settings: Settings | None = None, provider=None, journal: Journal
                     result = value
             if result is None:
                 return JSONResponse(BridgeError("INTERNAL_ERROR", "No completion result", 500).public(), status_code=500)
-            text, calls, finish = result
-            return JSONResponse(_response_object(req, request_id, text, calls, finish))
+            text, calls, finish, status = result
+            journal.diagnostic(request_id, "completion_delivered", agent_state=status["agent_state"],
+                               pending_operations=status["pending_operations"], finish_reason="tool_calls" if calls else finish)
+            return JSONResponse(_response_object(req, request_id, text, calls, finish, status))
 
         async def stream():
             # OpenAI role delta immediately; no executable tool deltas before validation.
@@ -345,7 +375,7 @@ def create_app(settings: Settings | None = None, provider=None, journal: Journal
                     yield sse_error(value.public())
                     return  # NEVER emit an artificial stop or [DONE] after an error.
                 elif event_type == "complete":
-                    text, calls, finish = value
+                    text, calls, finish, status = value
                     if calls:
                         for idx, c in enumerate(calls):
                             yield _sse_chunk(req, request_id, {"tool_calls": [{"index": idx, "id": c.id, "type": "function", "function": {"name": c.name, "arguments": ""}}]})
@@ -356,7 +386,9 @@ def create_app(settings: Settings | None = None, provider=None, journal: Journal
                         # Tool mode waited for safe terminal status; now release text.
                         for start in range(0, len(text), 1024):
                             yield _sse_chunk(req, request_id, {"content": text[start:start+1024]})
-                    yield _sse_chunk(req, request_id, {}, "tool_calls" if calls else finish)
+                    journal.diagnostic(request_id, "completion_delivered", agent_state=status["agent_state"],
+                                       pending_operations=status["pending_operations"], finish_reason="tool_calls" if calls else finish)
+                    yield _sse_chunk(req, request_id, {}, "tool_calls" if calls else finish, status)
                     yield "data: [DONE]\n\n"
 
         return StreamingResponse(stream(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})

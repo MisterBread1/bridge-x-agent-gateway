@@ -64,6 +64,8 @@ def main():
             ['-m', 'pytest', '-q', '-ra'],
             ['LOCAL_HTTP_ACCEPTANCE.py', '--report', str(workspace / 'http-acceptance.json')],
             ['-m', 'tools.native_css_acceptance'],
+            ['-m', 'tools.continuity_acceptance'],
+            ['-m', 'bridge_x', 'doctor', '--provider', 'fake', '--port', '0'],
             ['-m', 'bridge_x', '--provider', 'fake', '--check-config'],
         ]
         for command in commands:

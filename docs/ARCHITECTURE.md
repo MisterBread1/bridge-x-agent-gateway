@@ -2,7 +2,7 @@
 
 [README](../README.md) · [Configuration](CONFIGURATION.md) · [File guide](FILE_GUIDE.md) · [Development](DEVELOPMENT.md) · [Testing](TESTING.md)
 
-This describes the source in **12.12.3**, including compatibility paths. Bridge X is a protocol gateway and receipt coordinator. A provider proposes actions, the gateway validates and delivers them, and the requesting client owns permissions and execution. Neither model text nor a dispatched call proves that an action ran.
+This describes the source in **12.13.0 candidate**, including compatibility paths. Bridge X is a protocol gateway and receipt coordinator. A provider proposes actions, the gateway validates and delivers them, and the requesting client owns permissions and execution. Neither model text nor a dispatched call proves that an action ran.
 
 ## Components
 
@@ -86,7 +86,7 @@ The factory imports `MolabProvider` lazily. `molab_provider.py` imports native s
 
 ## Native tool-event parsing
 
-`molab_native.native_tools()` preserves client names and parameter schemas, marks definitions `source: frontend`, and advertises manual/agent modes. Forced tool choice limits the offered definitions; `tool_choice: none` offers none. `native_messages()` pairs assistant proposals and real client results into dynamic tool parts; only the latest two completed cycles keep executable arguments. Older pairs become non-executable historical summaries. Unpaired results are explicitly described as unverified.
+`molab_native.native_tools()` preserves client names and parameter schemas, marks definitions `source: frontend`, and advertises manual/agent modes. Forced tool choice limits the offered definitions; `tool_choice: none` offers none. `native_messages()` pairs assistant proposals and real client results into dynamic tool parts; all retained completed pairs keep their actual input/output and output-available state. Context compaction bounds old full pairs before this transformation; completed calls are never rewritten as ordinary assistant claims. Unpaired results are explicitly described as unverified.
 
 `decode_molab_event()` separates text, native events, terminal events, fallback text, and failures. `NativeToolAssembler` requires this progression for each upstream ID:
 
@@ -126,7 +126,7 @@ sequenceDiagram
     G->>P: Continue with actual client result
 ```
 
-`receipts.classify_result()` gives precedence to cancellation, timeout, and explicit failure. An integer `exit_code` or explicit boolean `success` can establish a reported outcome. Plain stdout, a boolean masquerading as an exit code, or prose saying “done” remains `unknown`. A received unknown result can reach `ACKNOWLEDGED`; it does not become `EXECUTED`.
+`receipts.classify_result()` gives precedence to cancellation, timeout, and explicit failure. An integer `exit_code` or explicit boolean `success` can establish a reported outcome. Recognized shell tools require a real integer exit code for success; a generic success flag without it remains unknown. Plain stdout, a boolean masquerading as an exit code, or prose saying “done” remains `unknown`. A received unknown result can reach `ACKNOWLEDGED`; it does not become `EXECUTED`.
 
 The verification endpoint compares **two digests supplied by the client**, checks conversation ownership and the allowed state transition, and records `VERIFIED`. It does not independently read a file, execute a check, or compare against a previously stored expected digest. Receipt and verification trust therefore ends at the authenticated client.
 
@@ -140,7 +140,7 @@ With tools enabled, executable deltas and speculative text are buffered until va
 
 ## Persistence and recovery
 
-`Journal` uses SQLite, an in-process reentrant lock, a busy timeout, and WAL for disk files. Its startup migration retains legacy intent metadata and adds execution scopes; `PRAGMA user_version` is 3. `deliver()` uses `BEGIN IMMEDIATE` so the duplicate-request check and insertion of a batch are atomic across connections.
+`Journal` uses SQLite, an in-process reentrant lock, a busy timeout, and WAL for disk files. Its startup migration retains legacy intent metadata and adds execution scopes; `PRAGMA user_version` is 4 (nullable argument digest and diagnostic metadata columns migrate in place). `deliver()` uses `BEGIN IMMEDIATE` so the duplicate-request check and insertion of a batch are atomic across connections.
 
 | Table | Stored responsibility |
 |---|---|

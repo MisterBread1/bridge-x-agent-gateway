@@ -1,3 +1,20 @@
+# Bridge X 12.13.0 — candidate notes (not published)
+
+This candidate repairs a reproduced native-history provenance/echo defect and adds offline diagnostics. It does not establish the cause of the original live model early final. The existing 12.12.3 stable release/tag/assets are preserved; no new release or merge is authorized by the investigation gate until that evidence gap is resolved.
+
+- Retain structured native historical call/results, typed receipt fields and original user goals under bounded context.
+- Distinguish empty successful shell output, failure, cancellation, timeout, unknown execution and duplicate receipts; guard matching uncertain mutation replays across restart.
+- Add `python -m bridge_x doctor`, optional local health probing, new-file sanitized reports and an authenticated report endpoint.
+- Add safe lifecycle events and additive `x_bridge_x` metadata. Ordinary text is delivered once without an invented continuation or task-success claim.
+- Migrate the existing SQLite journal from schema 3 to 4; no second state store or dependency change.
+- Verify eight-turn JSON/SSE tool workflows using real temporary files, fixed Python checks and every-turn journal reopen, plus cancellation, legacy regressions and clean ZIP installation.
+
+Compatibility risks: more retained native argument bytes within the existing context bound; closed-schema clients must allow the response extension; shell success without exit code becomes unknown; uncertain repeated mutations are blocked conservatively. [Detailed investigation](docs/AGENT_CONTINUITY.md) and [Doctor guide](docs/DOCTOR.md) explain evidence, recovery and limits.
+
+The following notes are historical and remain attributed to their original release.
+
+---
+
 # Bridge X v12.12.3 — First Stable Release
 
 ## Overview

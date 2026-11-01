@@ -3,6 +3,7 @@ import hashlib
 import copy
 import json
 from .errors import BridgeError
+from .json_utils import loads
 
 
 def _elide(value: str, limit: int) -> str:
@@ -16,6 +17,22 @@ def _elide(value: str, limit: int) -> str:
 
 def _length(messages):
     return len(json.dumps(messages, ensure_ascii=False, separators=(",", ":")))
+
+
+def _elide_result(value, limit):
+    """Keep typed receipt fields intact when shortening an old JSON stdout."""
+    if len(value) <= limit:
+        return value
+    try:
+        receipt = loads(value)
+    except (ValueError, RecursionError):
+        return _elide(value, limit)
+    if not isinstance(receipt, dict):
+        return value  # archive the entire paired exchange if it cannot fit
+    for key in ("stdout", "stderr", "content", "output"):
+        if isinstance(receipt.get(key), str):
+            receipt[key] = _elide(receipt[key], max(100, limit // 4))
+    return json.dumps(receipt, ensure_ascii=False, separators=(",", ":"))
 
 
 def compact(messages: list[dict], max_context_chars: int, max_single_tool: int = 12_000):
@@ -34,13 +51,13 @@ def compact(messages: list[dict], max_context_chars: int, max_single_tool: int =
         protected.add(first_user)
     for idx, item in enumerate(result):
         if idx not in protected and item.get("role") in ("tool", "function") and isinstance(item.get("content"), str):
-            new = _elide(item["content"], max_single_tool)
+            new = _elide_result(item["content"], max_single_tool)
             changed += new != item["content"]
             item["content"] = new
     if _length(result) > max_context_chars:
         for idx, item in enumerate(result):
             if idx not in protected and item.get("role") in ("tool", "function") and isinstance(item.get("content"), str):
-                item["content"] = _elide(item["content"], 1_500)
+                item["content"] = _elide_result(item["content"], 1_500)
                 if _length(result) <= max_context_chars:
                     break
 
