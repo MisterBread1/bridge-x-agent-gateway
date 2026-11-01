@@ -2,7 +2,7 @@
 
 [README](../README.md) · [Architecture](ARCHITECTURE.md) · [Development](DEVELOPMENT.md) · [Testing](TESTING.md)
 
-This inventory covers **all 128 tracked files in this checkout**, including hidden configuration and GitHub workflows. It excludes ignored/private/generated working state. Every Python file was inspected; symbols/imports below reflect its implementation, including lazy imports. Empty package markers are listed explicitly.
+This inventory covers **all 134 tracked files in this checkout**, including hidden configuration and GitHub workflows. It excludes ignored/private/generated working state. Every Python file was inspected; symbols/imports below reflect its implementation, including lazy imports. Empty package markers are listed explicitly.
 
 ## Complete tracked tree
 
@@ -34,6 +34,9 @@ bridge-x-agent-gateway/
 │   ├── config.py
 │   ├── context.py
 │   ├── coordinator.py
+│   ├── desktop.py
+│   ├── desktop_host.py
+│   ├── desktop_i18n.py
 │   ├── doctor.py
 │   ├── errors.py
 │   ├── execution_scope.py
@@ -44,11 +47,13 @@ bridge-x-agent-gateway/
 │   ├── molab_native.py
 │   ├── molab_provider.py
 │   ├── molab_runtime.py
+│   ├── monitoring.py
 │   ├── observability.py
 │   ├── paths.py
 │   ├── providers.py
 │   ├── rate_control.py
 │   ├── receipts.py
+│   ├── request_log.py
 │   ├── runtime-requirements.txt
 │   ├── schema_engine.py
 │   ├── schemas.py
@@ -104,6 +109,7 @@ bridge-x-agent-gateway/
 │   ├── test_command_engine_128.py
 │   ├── test_continuity.py
 │   ├── test_copy_key.py
+│   ├── test_desktop.py
 │   ├── test_dispatch_root_cause_12103.py
 │   ├── test_doctor.py
 │   ├── test_execution_branches.py
@@ -167,11 +173,11 @@ Package version metadata. Publishes `__version__` used by CLI, HTTP responses, t
 
 [Open source](../bridge_x/__main__.py) · Category: runtime code · User edit: **No**.
 
-Gateway and operator CLI. Provides doctor, key, backup, syntax checks and --ui startup; reserves the socket, owns an instance lock and launches one Uvicorn process. Does not stop other processes.
+CLI and native-window startup. Selects native --desktop/--ui or terminal --headless mode, syntax checking, doctor, backup and legacy key helper. The default Windows launcher opens the native window without a browser or login.
 
 **Key symbols:** `main`.
 
-**Internal relationships:** `bridge_x.__init__`, `bridge_x.config`, `bridge_x.doctor`, `bridge_x.errors`, `bridge_x.gateway`, `bridge_x.molab_provider`, `bridge_x.molab_runtime`, `bridge_x.observability`, `bridge_x.paths`, `bridge_x.user_state`.
+**Internal relationships:** `bridge_x.__init__`, `bridge_x.config`, `bridge_x.desktop`, `bridge_x.doctor`, `bridge_x.errors`, `bridge_x.gateway`, `bridge_x.molab_provider`, `bridge_x.molab_runtime`, `bridge_x.observability`, `bridge_x.paths`, `bridge_x.user_state`.
 
 ### `bridge_x/config.py`
 
@@ -191,7 +197,7 @@ FastAPI request boundary and response orchestration. `create_app()` wires settin
 
 **Key symbols:** `create_app`.
 
-**Internal relationships:** `bridge_x.__init__`, `bridge_x.capabilities`, `bridge_x.config`, `bridge_x.coordinator`, `bridge_x.errors`, `bridge_x.execution_scope`, `bridge_x.journal`, `bridge_x.json_utils`, `bridge_x.local_ui`, `bridge_x.observability`, `bridge_x.providers`, `bridge_x.receipts`, `bridge_x.schemas`, `bridge_x.sse`, `bridge_x.storage`, `bridge_x.tools`.
+**Internal relationships:** `bridge_x.__init__`, `bridge_x.capabilities`, `bridge_x.config`, `bridge_x.coordinator`, `bridge_x.errors`, `bridge_x.execution_scope`, `bridge_x.journal`, `bridge_x.json_utils`, `bridge_x.local_ui`, `bridge_x.monitoring`, `bridge_x.observability`, `bridge_x.providers`, `bridge_x.rate_control`, `bridge_x.receipts`, `bridge_x.schemas`, `bridge_x.sse`, `bridge_x.storage`, `bridge_x.tools`.
 
 ### `bridge_x/coordinator.py`
 
@@ -297,7 +303,7 @@ Read and configure the runtime AI mode. `runtime_mode_from_html()` parses known 
 
 [Open source](../bridge_x/rate_control.py) · Category: runtime code · User edit: **No**.
 
-Molab pacing, foreground priority, cooldown, and retry hints. `RateController` binds persistent journal state and exposes preflight/status/async admission slots. Helpers parse explicit HTTP/event retry hints and identify known background scopes. Actual retries live in `MolabProvider`; locks remain process-local.
+Molab pacing, foreground priority, cooldown and retry hints. Uses configured base start spacing (CLI default 1 second), discards old inflated spacing while preserving actual persisted cooldown and failure pressure, and serializes priority admission. Actual retries live in MolabProvider.
 
 **Key symbols:** `retry_after_seconds`, `event_retry_after`, `is_background`, `RateController`.
 
@@ -453,6 +459,56 @@ Personal local key and consistent backups. Creates a non-overwriting personal ke
 
 **Internal relationships:** `bridge_x.errors`, `bridge_x.paths`.
 
+### `bridge_x/desktop.py`
+
+[Open source](../bridge_x/desktop.py) · Category: runtime code · User edit: **No**.
+
+Native Tk operator window. Starts the owned proxy, renders actual request status/timings and filtered rows, switches ENG/RUS without losing fields, saves validated connection configuration, runs asynchronous diagnostics and exports sanitized metadata. It never executes client tools.
+
+**Key symbols:** `Desktop`, `run`.
+
+**Internal relationships:** `bridge_x.__init__`, `bridge_x.desktop_host`, `bridge_x.desktop_i18n`, `bridge_x.doctor`, `bridge_x.errors`, `bridge_x.json_utils`, `bridge_x.molab_provider`, `bridge_x.molab_runtime`, `bridge_x.paths`.
+
+### `bridge_x/desktop_host.py`
+
+[Open source](../bridge_x/desktop_host.py) · Category: runtime code · User edit: **No**.
+
+Owned proxy lifecycle and atomic connection setup. Keeps existing API authentication compatible, binds an exclusive loopback socket before touching SQLite, owns one Uvicorn thread and journal lock, and shuts down only that worker. Configuration replacement is validated and atomic.
+
+**Key symbols:** `desktop_settings`, `save_connection`, `GatewayHost`.
+
+**Internal relationships:** `bridge_x.errors`, `bridge_x.gateway`, `bridge_x.molab_provider`, `bridge_x.monitoring`, `bridge_x.paths`, `bridge_x.request_log`.
+
+### `bridge_x/desktop_i18n.py`
+
+[Open source](../bridge_x/desktop_i18n.py) · Category: runtime code · User edit: **No**.
+
+English/Russian native-window catalog. Localizes labels, stages, errors and operator guidance without changing model input.
+
+**Key symbols:** `text`.
+
+**Internal relationships:** Package metadata consumed by CLI, gateway, tests, and release tooling.
+
+### `bridge_x/monitoring.py`
+
+[Open source](../bridge_x/monitoring.py) · Category: runtime code · User edit: **No**.
+
+Bounded HTTP request metadata and phase telemetry. Pure ASGI middleware captures actual status and byte counts. Context-local stages separate local waiting from provider reception, preserve SSE failures after HTTP 200, track cancellation and retain no headers, query strings or content.
+
+**Key symbols:** `RequestMonitor`, `MonitorMiddleware`.
+
+**Internal relationships:** `bridge_x.observability`.
+
+### `bridge_x/request_log.py`
+
+[Open source](../bridge_x/request_log.py) · Category: runtime code · User edit: **No**.
+
+Bounded asynchronous rotating metadata log. One worker writes completed sanitized request records beside the journal with three 1 MiB backups. A bounded queue avoids HTTP disk IO; failed/dropped logging is surfaced without stopping requests.
+
+**Key symbols:** `RequestLog`.
+
+**Internal relationships:** Package metadata consumed by CLI, gateway, tests, and release tooling.
+
 ## Test modules and fixtures
 
 Category: **tests** for every row below. Ordinary users do **not** edit these for setup; contributors change/add tests with related behavior. Test functions are pytest entry points, not an application API. Relative helper imports are listed explicitly; runtime relationships are captured in the same column. All upstream transport fixtures are simulated.
@@ -495,9 +551,10 @@ Category: **tests** for every row below. Ordinary users do **not** edit these fo
 | [`tests/test_local_ui.py`](../tests/test_local_ui.py) | Real UI routes, authentication/Host/Origin/CSP, private configuration exclusion, explicit runtime checks, personal keys, consistent non-overwriting backups and instance ownership. | `bridge_x`, `bridge_x.config`, `bridge_x.errors`, `bridge_x.gateway`, `bridge_x.journal`, `bridge_x.paths`, `bridge_x.tool_models`, `bridge_x.user_state` |
 | [`tests/test_node_title.py`](../tests/test_node_title.py) | Node REPL missing display-title regression across native/JSON/text and HTTP/SSE; executable data unchanged, constrained schemas and supplied title preserved. | `bridge_x.config`, `bridge_x.errors`, `bridge_x.gateway`, `bridge_x.molab_native`, `bridge_x.providers`, `bridge_x.schemas`, `bridge_x.tools` |
 | [`tests/test_long_session.py`](../tests/test_long_session.py) | Over-2-MB client history, oversized recent output/complete input, retained original goal/instructions/pending calls, HTTP/SSE context recovery, bounded attempts and no recovery after partial output. | `bridge_x.config`, `bridge_x.context`, `bridge_x.errors`, `bridge_x.gateway`, `bridge_x.providers`, `tests.conftest`, `tests.test_molab_integration` |
-| [`tests/test_windows_launcher.py`](../tests/test_windows_launcher.py) | Real Windows cmd/venv bootstrap without pip, first-run setup, ensurepip failure, GUI argument/application exit-code forwarding and preservation of private fixture state; no package-network access. | Package marker used by relative test imports |
+| [`tests/test_windows_launcher.py`](../tests/test_windows_launcher.py) | Real offline cmd/venv missing-pip recovery, first-run setup, failure exit codes, default pythonw native launch and forwarding without touching private fixture state. | Package marker used by relative test imports |
 | [`tests/test_ui_languages.py`](../tests/test_ui_languages.py) | Complete English/Russian static labels, every operation/outcome/event, matching interpolation fields, preserved input controls, catalog load order and safe unauthenticated asset delivery. | `bridge_x.config`, `bridge_x.gateway`, `bridge_x.observability`, `bridge_x.tool_models` |
 | [`tests/test_copy_key.py`](../tests/test_copy_key.py) | Explicit clipboard invocation and failure handling without key disclosure; subprocess is mocked so the real clipboard is never read or written. | `tools` |
+| [`tests/test_desktop.py`](../tests/test_desktop.py) | Actual HTTP/SSE status and byte telemetry, exact phase timings, private bounded/rotating logs, cancellation, atomic configuration, preserved legacy API authentication, occupied-port ownership, shutdown/restart and native ENG/RUS state. | `bridge_x.config`, `bridge_x.desktop`, `bridge_x.desktop_host`, `bridge_x.errors`, `bridge_x.gateway`, `bridge_x.monitoring`, `bridge_x.providers`, `bridge_x.request_log` |
 
 ## Test support and manual tooling
 
@@ -609,9 +666,9 @@ Eight-turn native wire fixture; real temporary CSS edits, two empty-output fixed
 
 ### `tools/copy_key.py`
 
-[Open source](../tools/copy_key.py) · Category: Tooling / explicit local action · User edit: **No**.
+[Open source](../tools/copy_key.py) · Category: Tooling / legacy explicit local action · User edit: **No**.
 
-Reads the same personal key as --ui and sends it only to the system clipboard on explicit invocation. Safe errors do not print the key; tests replace the clipboard process.
+Advanced legacy helper copying a local API key only on operator invocation. Not needed for native-window startup; errors never print key values.
 
 **Public symbols:** `main`.
 
@@ -638,7 +695,7 @@ Reads the same personal key as --ui and sends it only to the system clipboard on
 | [`requirements-dev.txt`](../requirements-dev.txt) | **Configuration / dependencies.** Includes requirements.txt plus pinned pytest, pytest-asyncio, Hypothesis, and test dependency closure. | Installs the complete offline regression environment. | Users install for testing; maintainers update and verify pins. |
 | [`pytest.ini`](../pytest.ini) | **Configuration / tests.** Limits test discovery to tests and sets function-scoped asyncio fixture loops. | Read by pytest; keeps manual root helpers out of default discovery. | Maintainers only when test organization changes. |
 | [`examples/.molab_local.example.json`](../examples/.molab_local.example.json) | **Configuration / example.** Placeholder-only notebook/runtime URL, session ID, optional server token, and explicit headers; all supported connection-file fields. | Source for tools.configure; read_molab_config validates the locally copied form. | Copy/create locally and edit ignored .molab_local.json; never put real values in this example. |
-| [`start.bat`](../start.bat) | **Tooling / Windows launcher.** Finds Python 3.11+, creates or reuses .venv, restores missing pip through ensurepip, installs missing runtime requirements, and forwards arguments/exit status. | Separates Python/environment/pip/dependency failures; does not delete environments or change global Python. | Users run it; maintainers verify through real Windows bootstrap regressions. |
+| [`start.bat`](../start.bat) | **Tooling / Windows launcher.** Prepares Python 3.11+ and project pip/dependencies, then opens the native app through pythonw when no arguments are supplied. | Explicit arguments retain terminal execution; separates Python/pip/dependency/Tk failures without deleting state or changing global Python. | Users double-click; maintainers verify through real Windows launch tests. |
 | [`README.md`](../README.md) | **Documentation.** Project entry point: purpose/features, actual startup/API example, client setup, tool/SSE/recovery overview, errors, structure, security, limits, and navigation. | Links the detailed operator, architecture, developer, test, and release guides. | Users read; maintainers update when public behavior changes. |
 | [`CONTRIBUTING.md`](../CONTRIBUTING.md) | **Documentation.** Explains safe reproducible reports, focused changes, required evidence, and offline/live test boundaries. | Entry to DEVELOPMENT, TESTING, SECURITY, and the PR template. | Contributors follow it; maintainers update process guidance. |
 | [`CHANGELOG.md`](../CHANGELOG.md) | **Documentation / history.** Reconstructs version-specific changes and distinguishes structured text intent, native frontend tools, later scopes/rate recovery, and reported test evidence. | Uses prior reports without republishing private artifacts; links current QA separately. | Maintainers append verified history; users do not edit for setup. |
@@ -661,8 +718,8 @@ Reads the same personal key as --ui and sends it only to the system clipboard on
 | [`bridge_x/ui/style.css`](../bridge_x/ui/style.css) | **Runtime UI.** Neutral responsive light/dark operator-workbench styling. | Styles the real bundled HTML without external assets. | Maintainers edit with visual checks. |
 | [`bridge_x/runtime-requirements.txt`](../bridge_x/runtime-requirements.txt) | **Package metadata.** Bundled exact runtime pins for installed Doctor checks. | Must equal root requirements.txt; no new runtime library. | Maintainers regenerate with dependency changes. |
 | [`pyproject.toml`](../pyproject.toml) | **Packaging.** Installable metadata, console entry point, UI resource inclusion and build requirements. | Supports pip install of the complete distribution; setuptools is build-only. | Maintainers edit with installed-package verification. |
-| [`start-ui.bat`](../start-ui.bat) | **Windows launcher.** Delegates to start.bat with --ui and preserves exit status. | Starts the actual local operator workbench. | Users run; maintainers update with startup checks. |
-| [`docs/WORKBENCH.md`](../docs/WORKBENCH.md) | **Documentation.** Workbench connection, real recovery, upgrade, personal key, state paths and backup guide. | Operator instructions grounded in the current UI and CLI. | Users follow; maintainers update with behavior. |
+| [`start-ui.bat`](../start-ui.bat) | **Tooling / Windows launcher.** Compatibility alias for the native window. | Delegates to start.bat; never opens a browser. | Users may run this alias; maintainers verify argument forwarding. |
+| [`docs/WORKBENCH.md`](../docs/WORKBENCH.md) | **Documentation / native GUI.** Native app setup, timings, filters, safe rotating logs, diagnostics and upgrade instructions. | Explains compatibility and distinguishes provider delay from local waiting. | Users follow setup; maintainers update with behavior changes. |
 | [`docs/REVIEW_FIXES.md`](../docs/REVIEW_FIXES.md) | **Documentation.** Nine-defect repair matrix, extra Node/context regressions and validation scope. | Distinguishes deterministic fixtures from live model reasoning. | Users and reviewers read; maintainers append evidence. |
 | [`.molab.example`](../.molab.example) | **Configuration / public example.** Root-level placeholder-only Molab connection JSON, also attached as a separate checksummed release asset. | Preferred source for tools.configure; the ignored .molab_local.json is the active private copy. | Keep public placeholders; users edit only their private copy. |
 | [`bridge_x/ui/locales.js`](../bridge_x/ui/locales.js) | **Runtime UI / localization.** Complete English and Russian catalog for labels, operation/outcome states, safe diagnostic events, errors and setup instructions. | Loaded before app.js; UI language affects display only and is the sole browser-storage preference. | Maintainers edit with catalog and browser checks. |
@@ -675,26 +732,31 @@ Direct internal imports from the actual AST, including imports inside functions.
 | Importing file | Direct project imports |
 |---|---|
 | `bridge_x/__init__.py` | None |
-| `bridge_x/__main__.py` | `bridge_x.__init__`, `bridge_x.config`, `bridge_x.doctor`, `bridge_x.errors`, `bridge_x.gateway`, `bridge_x.molab_provider`, `bridge_x.molab_runtime`, `bridge_x.observability`, `bridge_x.paths`, `bridge_x.user_state` |
+| `bridge_x/__main__.py` | `bridge_x.__init__`, `bridge_x.config`, `bridge_x.desktop`, `bridge_x.doctor`, `bridge_x.errors`, `bridge_x.gateway`, `bridge_x.molab_provider`, `bridge_x.molab_runtime`, `bridge_x.observability`, `bridge_x.paths`, `bridge_x.user_state` |
 | `bridge_x/capabilities.py` | `bridge_x.schemas` |
 | `bridge_x/config.py` | `bridge_x.paths` |
 | `bridge_x/context.py` | `bridge_x.errors`, `bridge_x.json_utils` |
 | `bridge_x/coordinator.py` | `bridge_x.context`, `bridge_x.errors`, `bridge_x.journal`, `bridge_x.receipts`, `bridge_x.schemas` |
+| `bridge_x/desktop.py` | `bridge_x.__init__`, `bridge_x.desktop_host`, `bridge_x.desktop_i18n`, `bridge_x.doctor`, `bridge_x.errors`, `bridge_x.json_utils`, `bridge_x.molab_provider`, `bridge_x.molab_runtime`, `bridge_x.paths` |
+| `bridge_x/desktop_host.py` | `bridge_x.errors`, `bridge_x.gateway`, `bridge_x.molab_provider`, `bridge_x.monitoring`, `bridge_x.paths`, `bridge_x.request_log` |
+| `bridge_x/desktop_i18n.py` | None |
 | `bridge_x/doctor.py` | `bridge_x.__init__`, `bridge_x.config`, `bridge_x.errors`, `bridge_x.molab_provider`, `bridge_x.observability` |
 | `bridge_x/errors.py` | None |
 | `bridge_x/execution_scope.py` | None |
-| `bridge_x/gateway.py` | `bridge_x.__init__`, `bridge_x.capabilities`, `bridge_x.config`, `bridge_x.coordinator`, `bridge_x.errors`, `bridge_x.execution_scope`, `bridge_x.journal`, `bridge_x.json_utils`, `bridge_x.local_ui`, `bridge_x.observability`, `bridge_x.providers`, `bridge_x.receipts`, `bridge_x.schemas`, `bridge_x.sse`, `bridge_x.storage`, `bridge_x.tools` |
+| `bridge_x/gateway.py` | `bridge_x.__init__`, `bridge_x.capabilities`, `bridge_x.config`, `bridge_x.coordinator`, `bridge_x.errors`, `bridge_x.execution_scope`, `bridge_x.journal`, `bridge_x.json_utils`, `bridge_x.local_ui`, `bridge_x.monitoring`, `bridge_x.observability`, `bridge_x.providers`, `bridge_x.rate_control`, `bridge_x.receipts`, `bridge_x.schemas`, `bridge_x.sse`, `bridge_x.storage`, `bridge_x.tools` |
 | `bridge_x/journal.py` | `bridge_x.errors`, `bridge_x.json_utils`, `bridge_x.observability`, `bridge_x.tool_models` |
 | `bridge_x/json_utils.py` | None |
 | `bridge_x/local_ui.py` | `bridge_x.__init__`, `bridge_x.errors`, `bridge_x.json_utils`, `bridge_x.molab_provider`, `bridge_x.molab_runtime`, `bridge_x.observability`, `bridge_x.schemas` |
 | `bridge_x/molab_native.py` | `bridge_x.errors`, `bridge_x.json_utils`, `bridge_x.molab_provider`, `bridge_x.providers`, `bridge_x.receipts`, `bridge_x.tools` |
 | `bridge_x/molab_provider.py` | `bridge_x.context`, `bridge_x.errors`, `bridge_x.json_utils`, `bridge_x.molab_native`, `bridge_x.molab_runtime`, `bridge_x.providers`, `bridge_x.rate_control`, `bridge_x.sse`, `bridge_x.structured_intent`, `bridge_x.tools` |
 | `bridge_x/molab_runtime.py` | `bridge_x.errors` |
+| `bridge_x/monitoring.py` | `bridge_x.observability` |
 | `bridge_x/observability.py` | None |
 | `bridge_x/paths.py` | `bridge_x.errors` |
 | `bridge_x/providers.py` | `bridge_x.errors`, `bridge_x.json_utils`, `bridge_x.molab_provider`, `bridge_x.sse` |
 | `bridge_x/rate_control.py` | `bridge_x.errors` |
 | `bridge_x/receipts.py` | `bridge_x.json_utils` |
+| `bridge_x/request_log.py` | None |
 | `bridge_x/schema_engine.py` | `bridge_x.errors`, `bridge_x.json_utils`, `bridge_x.schemas`, `bridge_x.tool_models` |
 | `bridge_x/schemas.py` | None |
 | `bridge_x/sse.py` | `bridge_x.errors` |

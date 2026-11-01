@@ -27,9 +27,10 @@ def fixture_project(tmp_path):
     return folder
 
 
-def launch(folder, *arguments):
+def launch(folder, *arguments, extra_env=None):
     env = {k: v for k, v in os.environ.items() if not k.startswith(("BRIDGEX_", "PIP_")) and k not in ("PYTHONPATH", "PYTHONHOME")}
     env.update(PIP_NO_INDEX="1", PIP_DISABLE_PIP_VERSION_CHECK="1", PYTHONUTF8="1")
+    env.update(extra_env or {})
     return subprocess.run([os.environ["COMSPEC"], "/d", "/c", *arguments], cwd=folder,
                           env=env, input="\n", capture_output=True, encoding="utf-8", errors="replace", timeout=90)
 
@@ -52,7 +53,7 @@ def test_existing_python_without_pip_is_repaired_and_arguments_exit_status_prese
     assert "Restoring missing pip" in result.stdout
     assert "LAUNCHER_ENTRY" in result.stdout
     if exit_code:
-        assert "--ui|--fixture-error" in result.stdout
+        assert "--desktop|--fixture-error" in result.stdout
     assert subprocess.run([str(python), "-m", "pip", "--version"], capture_output=True).returncode == 0
     assert_private_state_untouched(folder)
 
@@ -88,4 +89,18 @@ def test_copy_key_launcher_needs_no_pip_and_preserves_helper_failure(tmp_path):
     result = launch(folder, "copy-key.bat")
     assert result.returncode == 7 and "COPY_KEY_FIXTURE" in result.stdout
     assert subprocess.run([str(folder / ".venv/Scripts/python.exe"), "-m", "pip", "--version"], capture_output=True).returncode != 0
+    assert_private_state_untouched(folder)
+
+
+def test_default_start_uses_native_pythonw_entry_without_browser_or_console(tmp_path):
+    folder = fixture_project(tmp_path)
+    venv.create(folder / ".venv", with_pip=False)
+    (folder / "bridge_x/__main__.py").write_text('import json,sys\nfrom pathlib import Path\nPath("desktop-start.json").write_text(json.dumps(sys.argv[1:]))\n')
+    result = launch(folder, "start.bat", extra_env={"BRIDGEX_PROVIDER": "fake"})
+    assert result.returncode == 0, result.stdout + result.stderr
+    import json, time
+    deadline = time.monotonic() + 10
+    while not (folder / "desktop-start.json").exists() and time.monotonic() < deadline:
+        time.sleep(.02)
+    assert json.loads((folder / "desktop-start.json").read_text()) == ["--desktop", "--provider", "molab"]
     assert_private_state_untouched(folder)

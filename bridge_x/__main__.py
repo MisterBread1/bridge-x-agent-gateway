@@ -1,5 +1,4 @@
 import argparse
-from dataclasses import replace
 import os
 import socket
 from .config import Settings
@@ -15,7 +14,9 @@ def main():
     parser.add_argument("--check-config", action="store_true", help="Check syntax without network access")
     parser.add_argument("--network", action="store_true", help="Doctor only: probe local health")
     parser.add_argument("--report", help="Doctor only: new sanitized report filename")
-    parser.add_argument("--ui", action="store_true", help="Start the authenticated local workbench")
+    parser.add_argument("--ui", action="store_true", help="Alias for --desktop")
+    parser.add_argument("--desktop", action="store_true", help="Open the native proxy monitor")
+    parser.add_argument("--headless", action="store_true", help="Run the proxy in the terminal")
     parser.add_argument("--no-browser", action="store_true", help="Do not open a browser automatically")
     parser.add_argument("--output", help="Backup only: new destination filename")
     args = parser.parse_args()
@@ -54,9 +55,10 @@ def main():
             return 2
         print("Journal backup created and checked")
         return 0
+    desktop = (args.desktop or args.ui) and not args.headless
     print("Bridge X " + __version__)
     print("Bridge X startup: provider=" + settings.provider + "; local config values are not printed")
-    if settings.provider == "molab" and (not args.ui or args.check_config):
+    if settings.provider == "molab" and (not desktop or args.check_config):
         from .molab_provider import read_molab_config
         try:
             config = read_molab_config(settings.molab_config_path)
@@ -69,6 +71,13 @@ def main():
     if args.check_config:
         print("Configuration syntax OK; upstream availability is not verified")
         return 0
+    if desktop:
+        try:
+            from .desktop import run
+            return run(settings, args.port)
+        except ImportError:
+            print("TK_UNAVAILABLE: Enable Tcl/Tk in your Python installation, or use --headless")
+            return 2
     import uvicorn
     from .gateway import create_app
     from .observability import configure_logging
@@ -83,22 +92,13 @@ def main():
         return 2
     try:
         with InstanceLock(settings.journal_path):
-            if args.ui:
-                from .user_state import personal_key
-                settings = replace(settings, local_api_key=personal_key())
-                print("Workbench key: open local.key in the BridgeX data directory, or run python -m bridge_x key")
-            if settings.provider == "molab" and settings.molab_tool_mode == "native" and not args.ui:
+            if settings.provider == "molab" and settings.molab_tool_mode == "native":
                 from .molab_runtime import ensure_native_mode
                 status = ensure_native_mode(read_molab_config(settings.molab_config_path))
                 print("Molab AI mode=" + status["mode"] + "; ZCode frontend tools enabled")
             port = listener.getsockname()[1]
             app = create_app(settings)
             print(f"Listening on http://127.0.0.1:{port}", flush=True)
-            if args.ui:
-                address = f"http://127.0.0.1:{port}/ui/"
-                print("Workbench: " + address, flush=True)
-                if not args.no_browser:
-                    app.state.open_ui_url = address
             uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port)).run(sockets=[listener])
             return 0
     except BridgeError as error:

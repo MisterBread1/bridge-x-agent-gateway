@@ -30,10 +30,20 @@ if errorlevel 1 goto pip_failed
 ".venv\Scripts\python.exe" -m pip install -r requirements.txt
 if errorlevel 1 goto dependencies_failed
 :run_bridge
+if "%~1"=="" goto run_desktop
 ".venv\Scripts\python.exe" -m bridge_x %*
 set "BRIDGE_START_EXIT_CODE=%errorlevel%"
 if not "%BRIDGE_START_EXIT_CODE%"=="0" pause
 exit /b %BRIDGE_START_EXIT_CODE%
+:run_desktop
+".venv\Scripts\python.exe" -c "import tkinter" >nul 2>&1
+if errorlevel 1 goto tkinter_missing
+start "" ".venv\Scripts\pythonw.exe" -m bridge_x --desktop --provider molab
+exit /b %errorlevel%
+:tkinter_missing
+echo TK_UNAVAILABLE: Python needs the Tcl/Tk component for the native window.
+echo Run start.bat --headless for terminal mode, or enable Tcl/Tk in Python setup.
+goto setup_failed
 :python_missing
 echo PYTHON_UNAVAILABLE: No usable Python 3.11+ was found through py or python.
 echo Check your Python launcher and PATH. See README.md.

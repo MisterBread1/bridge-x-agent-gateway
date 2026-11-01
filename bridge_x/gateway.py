@@ -44,9 +44,11 @@ def _sse_chunk(req, request_id, delta, reason=None, continuity=None):
                      "choices": [{"index": 0, "delta": delta, "finish_reason": reason}]})
 
 
-def create_app(settings: Settings | None = None, provider=None, journal: Journal | None = None):
+def create_app(settings: Settings | None = None, provider=None, journal: Journal | None = None, monitor=None):
     settings = settings or Settings.from_env()
     provider = provider or make_provider(settings)
+    if monitor is not None and hasattr(provider, "set_monitor"):
+        provider.set_monitor(monitor)
     if journal is None:
         try:
             if settings.journal_path != ":memory:":
@@ -62,17 +64,9 @@ def create_app(settings: Settings | None = None, provider=None, journal: Journal
 
     @asynccontextmanager
     async def lifespan(app):
-        async def open_browser():
-            await asyncio.sleep(0.5)
-            import webbrowser
-            await asyncio.to_thread(webbrowser.open, app.state.open_ui_url)
-        browser = asyncio.create_task(open_browser()) if getattr(app.state, "open_ui_url", None) else None
         try:
             yield
         finally:
-            if browser is not None:
-                browser.cancel()
-                await asyncio.gather(browser, return_exceptions=True)
             await storage.close()
 
     app = FastAPI(title="Bridge X", version=__version__, lifespan=lifespan)
@@ -80,8 +74,14 @@ def create_app(settings: Settings | None = None, provider=None, journal: Journal
     app.state.journal = journal
     app.state.storage = storage
     app.state.provider = provider
-    from .local_ui import install_ui
-    install_ui(app, settings, provider, storage)
+    app.state.monitor = monitor
+    if monitor is None:
+        # Retained headless compatibility only. The desktop has no web login.
+        from .local_ui import install_ui
+        install_ui(app, settings, provider, storage)
+    if monitor is not None:
+        from .monitoring import MonitorMiddleware
+        app.add_middleware(MonitorMiddleware, monitor=monitor)
 
     @app.exception_handler(BridgeError)
     async def bridge_error_handler(request, error):
@@ -185,6 +185,9 @@ def create_app(settings: Settings | None = None, provider=None, journal: Journal
                 raise BridgeError("TOOL_NOT_AVAILABLE", "Tool choice requires declared tools", 400)
             messages = [m.model_dump(exclude_none=True) for m in req.messages]
             execution_scope = resolve_execution_scope(messages, x_zcode_query_source)
+            if monitor is not None:
+                from .rate_control import is_background
+                monitor.branch(is_background(execution_scope))
             req._execution_scope = execution_scope
             await storage.call("record_client_request", request_id, x_request_id, req.conversation_id,
                                           execution_scope, x_zcode_query_source, len(req.tools))
@@ -217,6 +220,7 @@ def create_app(settings: Settings | None = None, provider=None, journal: Journal
             if hasattr(provider, "preflight"):
                 provider.preflight()
         except BridgeError as exc:
+            if monitor is not None: monitor.stage("failed", exc.code)
             await storage.event(request_id, "input_rejected", exc.code)
             await storage.event(request_id, "recovery_required", exc.code, agent_state="recovery_required")
             return JSONResponse(exc.public(), status_code=exc.status, headers=exc.headers())
@@ -238,6 +242,7 @@ def create_app(settings: Settings | None = None, provider=None, journal: Journal
             can_stream_text = not req.tools or req.tool_choice == "none"
             next_event_task = None
             try:
+                if monitor is not None and not hasattr(provider, "set_monitor"): monitor.stage("upstream")
                 await storage.event(request_id, "provider_generation_started", agent_state="awaiting_agent_decision")
                 while True:
                     remaining = settings.timeout_s - (time.monotonic() - started)
@@ -254,15 +259,18 @@ def create_app(settings: Settings | None = None, provider=None, journal: Journal
                     try:
                         event = next_event_task.result()
                     except StopAsyncIteration:
+                        if monitor is not None: monitor.stage("validating")
                         break
                     finally:
                         next_event_task = None
                     if isinstance(event, RateLimitWait):
+                        if monitor is not None: monitor.stage("retry_wait", event.code)
                         if event.diagnostics:
                             await storage.call("upstream_failure", request_id, event.code, event.diagnostics)
                         await storage.event(request_id, "rate_limit_retry_wait", event.code)
                         continue
                     if isinstance(event, ContextRecovery):
+                        if monitor is not None: monitor.stage("context_retry", "UPSTREAM_CONTEXT_LIMIT")
                         await storage.event(request_id, "context_recovery_before_output", "UPSTREAM_CONTEXT_LIMIT")
                         continue
                     if isinstance(event, Failed):
@@ -273,6 +281,7 @@ def create_app(settings: Settings | None = None, provider=None, journal: Journal
                         raise BridgeError(event.code, event.message, upstream_fail_status,
                                           event.code == "UPSTREAM_RATE_LIMIT", event.retry_after_s)
                     if isinstance(event, TextDelta):
+                        if monitor is not None and monitor.first_output(): monitor.stage("receiving")
                         if finish is not None:
                             raise BridgeError("UPSTREAM_AFTER_FINISH", "Upstream sent content after finish", 502)
                         if not isinstance(event.text, str) or not valid_value(event.text):
@@ -284,6 +293,7 @@ def create_app(settings: Settings | None = None, provider=None, journal: Journal
                         if streaming and can_stream_text:
                             yield ("data", _sse_chunk(req, request_id, {"content": event.text}))
                     elif isinstance(event, NativeToolDelta):
+                        if monitor is not None and monitor.first_output(): monitor.stage("receiving")
                         if finish is not None:
                             raise BridgeError("UPSTREAM_AFTER_FINISH", "Upstream sent tool data after finish", 502)
                         if type(event.index) is not int or not 0 <= event.index < 16:
@@ -366,11 +376,13 @@ def create_app(settings: Settings | None = None, provider=None, journal: Journal
                     await storage.event(request_id, "client_cancelled", agent_state="client_cancelled")
                 raise
             except BridgeError as exc:
+                if monitor is not None: monitor.stage("failed", exc.code)
                 await storage.event(request_id, "failed", exc.code)
                 await storage.event(request_id, "upstream_failure", exc.code)
                 await storage.event(request_id, "recovery_required", exc.code, agent_state="recovery_required")
                 yield ("error", exc)
             except Exception:
+                if monitor is not None: monitor.stage("failed", "INTERNAL_ERROR")
                 # Preserve privacy; the traceback is not returned to the client.
                 await storage.event(request_id, "failed", "INTERNAL_ERROR")
                 yield ("error", BridgeError("INTERNAL_ERROR", "Internal gateway failure", 500))

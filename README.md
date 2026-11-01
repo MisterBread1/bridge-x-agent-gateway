@@ -14,7 +14,7 @@ Bridge X translates provider responses into Chat Completions messages, validates
 
 **Stable version: 12.13.1 · Python: 3.11+**
 
-This release adds a local operator workbench, long-session context recovery, stronger receipt reconciliation and offline diagnostics. The [investigation](docs/AGENT_CONTINUITY.md) distinguishes verified protocol repairs from external model behavior.
+This release opens a native Windows proxy monitor from `start.bat`, with ENG/RUS, real request timings, rotating metadata logs and offline diagnostics. Long-session context recovery and receipt reconciliation are retained. The [investigation](docs/AGENT_CONTINUITY.md) distinguishes verified protocol repairs from external model behavior.
 
 [Quick Start](#quick-start) · [Configuration](docs/CONFIGURATION.md) · [Architecture](docs/ARCHITECTURE.md) · [File guide](docs/FILE_GUIDE.md) · [Testing](docs/TESTING.md) · [Contributing](CONTRIBUTING.md)
 
@@ -51,17 +51,17 @@ The gateway validates and delivers calls. The client executes tools. A proposed 
 - The pinned packages in `requirements.txt`; `requirements-dev.txt` adds the test tools.
 - A compatible client for interactive agent work. Molab requires a current operator-supplied runtime configuration. A notebook URL alone is insufficient.
 
-## Local workbench
+## Windows app
 
-1. Extract the complete release ZIP and double-click **`start-ui.bat`**.
-2. Double-click **`copy-key.bat`** in the same folder. Paste the copied key into the workbench and choose **Open workbench**. You can also select the `local.key` file.
-3. Under **Connection**, save your Molab values if needed, then use the copy buttons for ZCode's Base URL, model and local key.
+1. Extract the complete release ZIP and double-click **`start.bat`**. The native window opens and starts the Molab proxy automatically; simulator mode cannot override this default launch.
+2. Existing Molab settings are reused. On a new installation, open **Connection** and enter or import your runtime settings.
+3. Keep the ZCode model **`molab-glm`** and the usual local API address. Send a request: its POST code, queue time and provider time appear in **Requests**.
 
-Choose **ENG / RUS** at the top of the login screen or workbench. Language changes preserve the session and entered fields. Only the language preference is saved in browser storage; the local key stays in tab memory. Advanced key locations and environment overrides are under **Where can I find the key?**. [Workbench guide](docs/WORKBENCH.md).
+Choose **ENG / RUS** in the top right. The app needs no browser, window login or manual `local.key` setup. **Run diagnostics** checks the installation; **Save report** exports sanitized metadata. Filter errors and active requests without losing the full recent history. [Native window and upgrade guide](docs/WORKBENCH.md).
 
 ## Quick Start
 
-Windows shortcut: after preparing your local Molab configuration below, double-click `start.bat`. It creates `.venv` and installs the pinned runtime dependencies if needed, then starts the same Python CLI. Python 3.11+ must be available through `py -3` or `python`; first-time installation needs package-download access. Existing configuration and other servers are not changed. CLI arguments are forwarded, for example `start.bat --provider fake --port 18787`.
+Windows shortcut: double-click `start.bat`. It prepares `.venv` and missing runtime dependencies, then opens the native app using `pythonw`. Python 3.11+ with Tcl/Tk must be available through `py -3` or `python`; first-time installation needs package-download access. Explicit arguments retain terminal operation, for example `start.bat --headless --provider fake --port 18787`. `start-ui.bat` remains a native-app alias.
 
 Clone this repository or extract the prepared release ZIP. In PowerShell, open the project directory containing `requirements.txt`. The commands below use a test port, **18787**, so an existing gateway on 8787 can remain running.
 
@@ -105,14 +105,13 @@ The release includes [`.molab.example`](.molab.example) in the ZIP root and as a
 .\.venv\Scripts\python.exe -m bridge_x --check-config
 ```
 
-Generate a separate local gateway key and retain it in this terminal for startup:
+For terminal operation, start the gateway after configuring Molab:
 
 ```powershell
-$env:BRIDGEX_LOCAL_KEY = & .\.venv\Scripts\python.exe -c "import secrets; print(secrets.token_urlsafe(32))"
-.\.venv\Scripts\python.exe -m bridge_x
+.\.venv\Scripts\python.exe -m bridge_x --headless
 ```
 
-Enter the same key in your client locally. This does not create or replace a provider credential. Native Molab startup reads the configured runtime and, if needed, changes only its AI mode to `manual`. It never retrieves credentials from a browser. Successful syntax checking does not establish upstream availability.
+The existing local API authentication remains compatible. A fresh installation uses `molab-local`; an explicit `BRIDGEX_LOCAL_KEY` overrides it. The native app also reuses an existing 12.13.0 personal key automatically. No window login is required. The terminal startup checks runtime AI mode; the native app checks it when a request arrives. Only AI mode may be changed to `manual`. Successful syntax checking does not establish upstream availability.
 
 ## Configuration
 
@@ -150,9 +149,9 @@ For the normal Molab launch, use these ZCode custom-provider settings:
 | API format | OpenAI Chat Completions |
 | Base URL | `http://127.0.0.1:8787/v1` |
 | Model | `molab-glm` |
-| API key | Your `BRIDGEX_LOCAL_KEY` value |
+| API key | Existing client key; fresh-install default `molab-local` |
 
-If you choose another `--port`, update the base URL accordingly. For offline testing on 18787, use `bridge-x-fake` and the default demo local key `molab-local`. Replace that demo key for normal operation. The listener is always `127.0.0.1`; this release has no public hosting mode.
+If you choose another port, update the base URL accordingly. Existing customized authentication is preserved; advanced installations can set `BRIDGEX_LOCAL_KEY` explicitly in both gateway and client. For offline testing on 18787, use `bridge-x-fake` and `molab-local`. The listener is always `127.0.0.1`.
 
 ## Tool Calling
 

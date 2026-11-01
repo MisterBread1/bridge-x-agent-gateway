@@ -78,7 +78,15 @@ def main():
 from bridge_x.config import Settings
 from bridge_x.gateway import create_app
 from fastapi.testclient import TestClient
+from bridge_x.desktop_host import GatewayHost
+from bridge_x.desktop_i18n import text
+from bridge_x.monitoring import RequestMonitor
+from bridge_x.request_log import RequestLog
 assert files('bridge_x').joinpath('ui/index.html').is_file()
+assert text('requests', 'ru') == 'Запросы'
+with TestClient(create_app(Settings(journal_path=':memory:'), monitor=RequestMonitor())) as client:
+    assert client.get('/health').status_code == 200
+    assert client.get('/ui/').status_code == 404
 with TestClient(create_app(Settings(journal_path=':memory:')), base_url='http://127.0.0.1') as client:
     assert client.get('/ui/').status_code == 200
     assert client.get('/ui/assets/app.js').status_code == 200
@@ -89,7 +97,8 @@ with TestClient(create_app(Settings(journal_path=':memory:')), base_url='http://
         entry = environment / ('Scripts/bridge-x.exe' if os.name == 'nt' else 'bin/bridge-x')
         subprocess.run([str(entry), 'doctor', '--provider', 'fake', '--port', '0'], cwd=workspace, env=env, check=True, timeout=30)
     print(json.dumps({'version': __version__, 'members': count, 'clean_zip_environment': True,
-                      'checks': len(commands) + 3, 'installed_package_ui': True, 'passed': True, 'live_provider': False}))
+                      'checks': len(commands) + 3, 'installed_package_ui': True, 'installed_native_console': True,
+                      'passed': True, 'live_provider': False}))
     return 0
 
 

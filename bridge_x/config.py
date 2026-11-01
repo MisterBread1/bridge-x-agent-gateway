@@ -30,7 +30,7 @@ class Settings:
     molab_tool_mode: str = "structured"
     verify_molab_native_mode: bool = False
     molab_rate_control: bool = False
-    molab_request_interval_s: float = 15.0
+    molab_request_interval_s: float = 1.0
     molab_background_interval_s: float = 30.0
     molab_background_idle_s: float = 10.0
     molab_cooldown_s: float = 60.0
@@ -77,7 +77,7 @@ class Settings:
             "molab_tool_mode": os.getenv("BRIDGEX_MOLAB_TOOL_MODE", "native").strip().lower(),
             "verify_molab_native_mode": True,
             "molab_rate_control": True,
-            "molab_request_interval_s": float(os.getenv("BRIDGEX_MOLAB_REQUEST_INTERVAL", "15")),
+            "molab_request_interval_s": float(os.getenv("BRIDGEX_MOLAB_REQUEST_INTERVAL", "1")),
             "molab_background_interval_s": float(os.getenv("BRIDGEX_MOLAB_BACKGROUND_INTERVAL", "30")),
             "molab_background_idle_s": float(os.getenv("BRIDGEX_MOLAB_BACKGROUND_IDLE", "10")),
             "molab_cooldown_s": float(os.getenv("BRIDGEX_MOLAB_COOLDOWN", "60")),

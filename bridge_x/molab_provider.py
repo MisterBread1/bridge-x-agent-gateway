@@ -504,6 +504,7 @@ class MolabProvider:
         self.last_success_at = None
         self.last_failure_at = None
         self.last_failure_code = None
+        self.monitor = None
         self.tool_protocol = "native" if settings.molab_tool_mode != "structured" else "structured_json_intent"
         # Only a digest, count, and timestamp are held in RAM; no messages,
         # tool arguments, response bodies, addresses or tokens are retained.
@@ -512,6 +513,12 @@ class MolabProvider:
     def set_rate_store(self, journal):
         # One shared Molab key, independent of runtime/session rotation.
         self.rate_controller.bind("molab", journal)
+
+    def set_monitor(self, monitor):
+        self.monitor = monitor
+
+    def _trace(self, phase):
+        if self.monitor is not None: self.monitor.stage(phase)
 
     def preflight(self):
         self.rate_controller.preflight()
@@ -653,9 +660,11 @@ class MolabProvider:
         # Unknown outcomes are never retried by the outer recovery loop.
         started_at = time.monotonic()
         try:
+            self._trace("queue")
             async with self.rate_controller.slot(req._execution_scope, max_wait_s=queue_wait_s), self._request_lock:
                 async with httpx.AsyncClient(timeout=timeout, follow_redirects=False, trust_env=False) as client:
                     if self.settings.molab_tool_mode == "native" and self.settings.verify_molab_native_mode and (req.tools or self.rate_controller.retry_limit):
+                        self._trace("runtime_check")
                         from .molab_runtime import runtime_mode_from_html
                         origin = urlsplit(cfg.chat_url)
                         response = await client.get(f"{origin.scheme}://{origin.netloc}/", headers=headers)
@@ -673,6 +682,8 @@ class MolabProvider:
                             raise UpstreamError("MOLAB_NATIVE_MODE_UNKNOWN", "Cannot determine Molab AI mode from the runtime page; check runtime access", 503)
                         if observed_mode not in ("manual", "agent"):
                             raise UpstreamError("MOLAB_NATIVE_MODE_REQUIRED", "Molab AI mode must be manual for client tools; check the configured runtime and restart Bridge X", 503)
+                    self._trace("upstream")
+                    started_at = time.monotonic()
                     async with client.stream("POST", cfg.chat_url, content=encoded, headers=headers) as response:
                         if response.status_code != 200:
                             status = response.status_code
@@ -754,6 +765,7 @@ class MolabProvider:
                                         yield Failed(output.code, message, metrics, retry_delay, safe_to_retry=safe)
                                         return
                                     if isinstance(output, TextDelta):
+                                        if self.monitor is not None and self.monitor.first_output(): self._trace("receiving")
                                         if seen_finish or seen_done:
                                             yield Failed("UPSTREAM_AFTER_FINISH", "Molab sent content after finish")
                                             return
@@ -778,6 +790,7 @@ class MolabProvider:
                                                 return
                                             fallback.append(output[1])
                                         elif output[0] == "native":
+                                            if self.monitor is not None and self.monitor.first_output(): self._trace("receiving")
                                             if seen_finish or seen_done:
                                                 yield Failed("UPSTREAM_AFTER_FINISH", "Molab sent tool data after finish")
                                                 return

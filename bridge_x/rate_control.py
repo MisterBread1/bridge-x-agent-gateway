@@ -87,9 +87,12 @@ class RateController:
             self.blocked_until = state["blocked_until"]
             self.last_start = state["last_start"]
             self.failures = state["failures"]
-            self.interval = max(self.base_interval, state["interval_s"])
+            # Old builds persisted an extra 30-60s spacing penalty after a
+            # limit, on top of blocked_until. Keep the real cooldown, not the
+            # obsolete penalty that made successful follow-ups wait minutes.
+            self.interval = self.base_interval
             self.last_limit = state["last_limit"]
-            if not self.last_limit and self.interval > self.base_interval and self.blocked_until:
+            if not self.last_limit and self.failures and self.blocked_until:
                 self.last_limit = max(0, min(time.time(), self.blocked_until - self.base_cooldown))
 
     def _save(self):
@@ -110,15 +113,15 @@ class RateController:
         delay = max(advisory, hint or 0.0)
         if self.enabled:
             self.blocked_until = max(self.blocked_until, now + delay)
-            self.interval = max(self.base_interval, min(60.0, self.base_interval * (2 ** min(self.failures, 2))))
+            self.interval = self.base_interval
             self._save()
         return delay
 
     def note_success(self):
         if self.enabled:
+            self.interval = self.base_interval
             if time.time() - self.last_limit >= self.recovery_window:
                 self.failures = 0
-                self.interval = max(self.base_interval, self.interval * 0.9)
             self._save()
 
     def status(self):

@@ -43,3 +43,8 @@ def test_media_audit_only_accepts_named_gif_assets():
     assert scan([('docs/assets/bridge-x-demo.gif', valid)]) == []
     assert scan([('docs/assets/bridge-x-demo.gif', b'not a GIF')])
     assert scan([('unapproved.bin', b'\xff')])
+
+
+@pytest.mark.parametrize('name', ['journal.requests.jsonl', 'journal.requests.jsonl.1', 'local.key'])
+def test_publication_audit_rejects_operator_logs_and_keys(name):
+    assert any(item['kind'] == 'private_or_generated_file' for item in scan([(name, b'fixture')]))
