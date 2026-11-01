@@ -16,6 +16,7 @@ __pycache__/
 *.sqlite-wal
 *.sqlite-shm
 *.log
+*.requests.jsonl*
 *.dmp
 artifacts/
 *acceptance_result.json

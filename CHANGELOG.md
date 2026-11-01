@@ -1,5 +1,15 @@
 # Changelog
 
+## 12.13.1 — Stable
+
+- Open a native Windows proxy monitor from start.bat using pythonw: automatic proxy startup, ENG/RUS, request filters, timings, byte counts, diagnostics, connection import/save and safe reports. No browser login or manual local.key setup; existing API authentication is preserved.
+- Add bounded rotating request metadata logs with asynchronous disk IO, visible logging failures and no request bodies, credentials or private URLs. Show SSE errors even after HTTP 200 headers.
+- Replace accumulated post-limit foreground spacing with the configured base (default 1 second), retaining actual cooldowns and failure pressure. Separate provider transport time from local admission time.
+
+- Repair Windows startup with an existing Python environment missing pip: bootstrap through bundled ensurepip, preserve arguments/exit status and distinguish interpreter, environment, pip and dependency failures. No global Python changes or automatic environment deletion.
+- Include `.molab.example` in the ZIP root and as a separate release asset, covered by SHA256SUMS; document each field and creating the private `.molab_local.json` without overwriting it.
+- Add real offline cmd/venv regressions for missing pip, first startup, failed ensurepip and GUI argument/exit-code forwarding. Existing 12.13.0 assets remain unchanged.
+
 ## 12.13.0 — Stable
 
 - Add an authenticated local operator workbench: real operations, uncertain-outcome checks, Molab setup, explicit runtime checks and sanitized reports. Start with `start-ui.bat` or `python -m bridge_x --ui`.

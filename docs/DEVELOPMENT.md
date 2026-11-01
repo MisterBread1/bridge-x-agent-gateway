@@ -82,7 +82,7 @@ Inspect sanitized `/diagnostics` and operation state first. Never add logging of
 
 ## Publication tooling
 
-`python -m tools.build_release --output-dir artifacts` selects runtime/tests/tools/docs, the example, requirements, contribution guide, and GitHub Markdown/workflows. It creates `bridge-x-12.13.0-complete.zip` and `SHA256SUMS.txt` in that ignored output directory. The archive root is always `bridge-x-12.13.0/`, independent of checkout folder name. Files are ordered and timestamps fixed; identical input/toolchain yields repeatable bytes. Different pre-existing outputs are refused; choose a fresh output directory when inputs change.
+`python -m tools.build_release --output-dir artifacts` selects runtime/tests/tools/docs, the example, requirements, contribution guide, and GitHub Markdown/workflows. It creates `bridge-x-12.13.1-complete.zip` plus the standalone `.molab.example` and `SHA256SUMS.txt` covering both in that ignored output directory. The archive root is always `bridge-x-12.13.1/`, independent of checkout folder name. Files are ordered and timestamps fixed; identical input/toolchain yields repeatable bytes. Different pre-existing outputs are refused; choose a fresh output directory when inputs change.
 
 The per-file checksum list is generated **inside the archive**, leaving the tracked checkout manifest unchanged. The original tracked ZIP is excluded from the complete archive and preserved. Symlink/escaped selected inputs are rejected. `tests/test_release_packaging.py` verifies complete docs, immutability, repeatability, and private-file exclusion.
 

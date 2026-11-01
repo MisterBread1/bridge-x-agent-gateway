@@ -135,18 +135,20 @@ def test_success_does_not_erase_recent_rate_pressure_after_restart(tmp_path):
     controller = RateController(cfg)
     controller.bind('molab', journal)
     assert controller.note_limit() == 60
+    blocked_until = controller.blocked_until
     controller.note_success()
     controller.note_success()
-    assert controller.interval == 30 and controller.failures == 1
+    assert controller.interval == 15 and controller.failures == 1
+    assert controller.blocked_until == blocked_until
     journal.close()
     journal = Journal(path)
     restarted = RateController(cfg)
     restarted.bind('molab', journal)
     assert restarted.last_limit == controller.last_limit
-    assert restarted.note_limit() == 120 and restarted.interval == 60
+    assert restarted.note_limit() == 120 and restarted.interval == 15
     restarted.last_limit = time.time() - cfg.molab_rate_recovery_s - 1
     restarted.note_success()
-    assert restarted.failures == 0 and restarted.interval < 60
+    assert restarted.failures == 0 and restarted.interval == 15
     journal.close()
 
 
@@ -158,7 +160,7 @@ def test_upgrade_old_provider_cache_preserves_existing_data(tmp_path):
     journal = Journal(path)
     controller = RateController(retry_settings(tmp_path, molab_request_interval_s=15))
     controller.bind('molab', journal)
-    assert controller.blocked_until > time.time() and controller.interval == 30
+    assert controller.blocked_until > time.time() and controller.interval == 15
     assert controller.failures == 1 and controller.last_start == 123 and controller.last_limit > 0
     journal.close()
 

@@ -17,6 +17,10 @@ python -m venv .venv
 
 Do not inherit a real provider's `BRIDGEX_*` settings into a test run. In a fresh shell, leave those variables unset; the fixtures supply dummy configuration and temporary journals. Installation downloads dependencies; test execution uses local fixtures. `pytest.ini` limits discovery to `tests/` and uses function-scoped asyncio fixture loops. Parametrization means collected cases outnumber test functions.
 
+## Native console regressions
+
+`python -m pytest tests/test_desktop.py tests/test_windows_launcher.py -q` checks native startup, missing-pip repair, HTTP/SSE status and byte telemetry, exact queue/provider timing, bounded private logs and rotation, occupied-port ownership, shutdown/restart, preserved authentication and ENG/RUS state. The Windows Tk case creates a hidden test window; it does not inspect another application's UI. The installed-package probe verifies native modules outside the checkout and confirms desktop mode omits the legacy web endpoints.
+
 ## Continuity and Doctor regressions
 
 Run `python -m pytest tests/test_continuity.py tests/test_doctor.py -q` and `python -m tools.continuity_acceptance`. The long fixture checks seven unique actions across eight SQLite reopens, real CSS edits, unchanged neighbors and two empty-stdout Python checks, in JSON and SSE modes. The peer validates all preceding native receipt/input pairs before advancing. This is simulated upstream protocol evidence, not live model reasoning. See [baseline failures and validation scope](AGENT_CONTINUITY.md).

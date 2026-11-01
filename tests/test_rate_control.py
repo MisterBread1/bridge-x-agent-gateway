@@ -46,7 +46,7 @@ def test_real_cli_configuration_enables_pacing(monkeypatch):
                 "BRIDGEX_MOLAB_BACKGROUND_IDLE", "BRIDGEX_MOLAB_COOLDOWN", "BRIDGEX_MOLAB_MAX_QUEUE_WAIT"):
         monkeypatch.delenv(key, raising=False)
     cfg = Settings.from_env()
-    assert cfg.molab_rate_control and cfg.molab_request_interval_s == 15
+    assert cfg.molab_rate_control and cfg.molab_request_interval_s == 1
     assert cfg.molab_cooldown_s == 60
 
 

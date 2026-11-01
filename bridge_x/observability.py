@@ -13,6 +13,7 @@ EVENTS = {"request_received", "provider_generation_started", "native_tool_propos
 EVENTS |= {"input_rejected", "failed", "rate_limit_retry_wait", "native_batch_serialized",
            "tool_history_recovered", "tool_receipt_unmatched", "context_recovery_before_output"}
 ERROR_CODES = {"EXECUTION_UNKNOWN", "RECEIPT_UNVERIFIED", "UPSTREAM_HISTORY_ECHO", "UPSTREAM_DEADLINE",
+               "MOLAB_CONFIG_MISSING", "MOLAB_CONFIG_INVALID", "MOLAB_CONFIG_PLACEHOLDER",
                "UPSTREAM_RATE_LIMIT", "UPSTREAM_QUOTA_EXHAUSTED", "UPSTREAM_CONTEXT_LIMIT", "UPSTREAM_OUTPUT_LIMIT",
                "UPSTREAM_CONTENT_FILTER", "UPSTREAM_INCOMPLETE", "UPSTREAM_UNRECOGNIZED_FINISH", "UPSTREAM_FINISH_ERROR",
                "UPSTREAM_AFTER_FINISH", "UPSTREAM_DUPLICATE_FINISH", "UPSTREAM_MISSING_TOOL_CALLS", "UPSTREAM_ABORTED",

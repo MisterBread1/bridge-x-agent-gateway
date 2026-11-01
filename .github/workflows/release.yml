@@ -94,7 +94,7 @@ jobs:
             exit 0
           }
           $title = if ($version -eq '12.12.3') { "Bridge X v$version — First Stable Release" } else { "Bridge X v$version" }
-          $releaseArgs = @('release', 'create', $tag, "artifacts/bridge-x-$version-complete.zip", 'artifacts/SHA256SUMS.txt', '--target', $env:RELEASE_COMMIT, '--title', $title, '--notes-file', 'RELEASE_NOTES.md')
+          $releaseArgs = @('release', 'create', $tag, "artifacts/bridge-x-$version-complete.zip", 'artifacts/molab.example#.molab.example', 'artifacts/SHA256SUMS.txt', '--target', $env:RELEASE_COMMIT, '--title', $title, '--notes-file', 'RELEASE_NOTES.md')
           if ($version.Contains('-')) { $releaseArgs += @('--prerelease', '--latest=false') } else { $releaseArgs += '--latest' }
           gh @releaseArgs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

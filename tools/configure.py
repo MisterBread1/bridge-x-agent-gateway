@@ -6,8 +6,11 @@ import shutil
 def main():
     root = Path(__file__).resolve().parents[1]
     target = root / ".molab_local.json"
+    template = root / ".molab.example"
+    if not template.is_file():
+        template = root / "examples/.molab_local.example.json"
     try:
-        with target.open("xb") as destination, (root / "examples/.molab_local.example.json").open("rb") as example:
+        with template.open("rb") as example, target.open("xb") as destination:
             shutil.copyfileobj(example, destination)
     except FileExistsError:
         print("Local configuration already exists; it was not changed")

@@ -109,3 +109,12 @@ body{margin:0;padding:22px;background:light-dark(#eeeeec,#101010)}
 #bridge-x-app #events{max-width:100%;overflow-wrap:anywhere}
 @media(max-width:850px){#bridge-x-app .wb-event{grid-template-columns:15px 45px minmax(0,1fr) 125px}}
 @media(max-width:650px){body{padding:10px}#bridge-x-app .wb-event{grid-template-columns:15px 45px minmax(0,1fr) 120px}#bridge-x-app .wb-history{min-height:260px}#bridge-x-app .wb-event .wb-result{white-space:normal;font-size:11px}#bridge-x-app .wb-tabs{gap:16px}#bridge-x-app .wb-tab{font-size:12px}#bridge-x-app .wb-log>div{grid-template-columns:65px minmax(0,1fr)}#bridge-x-app .login{padding:20px}}
+#bridge-x-app .wb-language{display:flex;align-items:center;justify-content:flex-end;gap:9px;margin:0 0 12px;font-size:12px;color:var(--w-muted)}
+#bridge-x-app .wb-language select{font:inherit;padding:5px 8px;border:1px solid var(--w-line);border-radius:3px;background:var(--w-bg);color:var(--w-text);min-height:32px}
+
+#bridge-x-app .wb-onboarding{padding-left:20px;margin:16px 0 22px;font-size:13px;color:var(--w-muted)}
+#bridge-x-app .wb-onboarding li+li{margin-top:7px}
+#bridge-x-app .wb-key-help{margin-top:16px;font-size:12px;color:var(--w-muted)}
+#bridge-x-app .wb-key-help summary{cursor:pointer}
+#bridge-x-app .wb-key-help p{margin-top:10px;overflow-wrap:anywhere}
+#bridge-x-app #copy-key{font-size:12px;padding:6px 9px}

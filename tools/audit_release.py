@@ -13,7 +13,7 @@ def scan(members):
     for name, data in members:
         parts = Path(name).parts
         forbidden = {'.git', '.venv', 'venv', '__pycache__', '.pytest_cache', '.hypothesis', '.audit-tmp'}
-        if forbidden.intersection(parts) or Path(name).name in {'.molab_local.json', '.env'} or name.endswith(('.sqlite3', '.sqlite3-wal', '.sqlite3-shm', '.pyc', '.log', '.dmp')):
+        if forbidden.intersection(parts) or Path(name).name in {'.molab_local.json', '.env', 'local.key'} or '.requests.jsonl' in Path(name).name or name.endswith(('.sqlite3', '.sqlite3-wal', '.sqlite3-shm', '.pyc', '.log', '.dmp')):
             findings.append({'file': name, 'kind': 'private_or_generated_file'})
         relative = name.replace('\\', '/')
         if relative.startswith('bridge-x-') and '/' in relative:

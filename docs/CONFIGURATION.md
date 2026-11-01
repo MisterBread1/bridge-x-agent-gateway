@@ -11,7 +11,7 @@ Environment variables are read by `Settings.from_env()`. `.env` is not loaded. P
 | `BRIDGEX_TIMEOUT_SECONDS` | `600` | Total gateway request deadline, including queue and retries. |
 | `BRIDGEX_ACTION_CHARS` | `2200` | Advisory action size, 1000–12000; not a provider token limit. |
 | `BRIDGEX_MOLAB_TOOL_MODE` | `native` | `native`, `auto`, or explicit legacy `structured`. Native is the public default. |
-| `BRIDGEX_MOLAB_REQUEST_INTERVAL` | `15` | Minimum seconds between generation starts. |
+| `BRIDGEX_MOLAB_REQUEST_INTERVAL` | `1` | Minimum seconds between generation starts; real cooldown deadlines still apply. |
 | `BRIDGEX_MOLAB_BACKGROUND_INTERVAL` | `30` | Minimum seconds between background starts. |
 | `BRIDGEX_MOLAB_BACKGROUND_IDLE` | `10` | Foreground idle period before background admission. |
 | `BRIDGEX_MOLAB_COOLDOWN` | `60` | Initial fallback pause after rate rejection; explicit longer upstream delays win. |
@@ -24,7 +24,7 @@ Environment variables are read by `Settings.from_env()`. `.env` is not loaded. P
 
 Numeric time settings must be finite and positive. `BRIDGEX_LOCAL_KEY` authenticates the local gateway; it is not a Molab token. Do not put unsupported fields in the example and expect them to affect the application.
 
-CLI options: `--ui`, `--no-browser`, `key`, `backup --output <new-file>` ([workbench guide](WORKBENCH.md)); optional `doctor` command with `--network` (local health only) and `--report` (new sanitized JSON file); `--provider`, `--port` (default 8787, loopback only, zero chooses a free port), and `--check-config` (syntax only; no remote access or SQLite creation).
+CLI options: `--desktop` (`--ui` alias) opens the native window; `--headless` runs the terminal proxy. `start.bat` without arguments selects native mode. The legacy `--no-browser` argument is accepted but no launcher opens a browser. `key` and `backup --output <new-file>` remain available ([window guide](WORKBENCH.md)); optional `doctor` supports `--network` (local health only) and `--report` (new sanitized JSON file); `--provider`, `--port` (default 8787, loopback only, zero chooses a free port), and `--check-config` (syntax only; no remote access or SQLite creation).
 
 ## Local HTTP endpoints
 
@@ -90,6 +90,12 @@ Keep one active bridge for a given journal/quota. Admission priority is process-
 
 ## State and long-session limits in 12.13
 
-`BRIDGEX_DATA_DIR` overrides the per-user state directory. Windows uses `%LOCALAPPDATA%/BridgeX`; Linux uses `$XDG_DATA_HOME/BridgeX`, otherwise `~/.local/share/BridgeX`. Existing legacy files are discovered, never silently moved. GUI mode generates a personal `local.key`; ordinary CLI compatibility keeps the existing local-key default.
+`BRIDGEX_DATA_DIR` overrides the per-user state directory. Windows uses `%LOCALAPPDATA%/BridgeX`; Linux uses `$XDG_DATA_HOME/BridgeX`, otherwise `~/.local/share/BridgeX`. Existing legacy files are discovered, never silently moved. Native mode creates no local key and needs no login; it preserves an explicit key or reuses an existing valid Molab `local.key` from 12.13.0. New installations retain the `molab-local` API default. Native request logs rotate beside the selected journal; see the [window guide](WORKBENCH.md#diagnostics-and-logs).
 
 The local request body bound is 16,000,000 bytes so history can be reconciled and compacted before inference. Molab payloads remain bounded to 1,500,000 bytes. The 220,000-character context bound also reserves declared tool schemas and envelope overhead; it is a conservative local bound, not a provider tokenizer or a guaranteed context-window size. Recent completed output can be explicitly elided while keeping typed receipt fields; pending executable inputs and user/system instructions remain intact. An explicit upstream context rejection can produce one smaller attempt before any output/input is exposed.
+
+## Downloadable connection template
+
+[`.molab.example`](../.molab.example) is a placeholder-only JSON file distributed at the ZIP root and as a separate GitHub release asset. Run `python -m tools.configure` in the extracted project to create the private `.molab_local.json`; an existing private file is never overwritten. Fill `chat_url` with your current authorized HTTPS runtime endpoint, `marimo_session_id` with its session ID, and `marimo_server_token` only if required. Optional `http_headers` defaults to `{}`; `notebook_url` is a reference only. The public example is not loaded as active configuration. `python -m bridge_x --check-config` rejects unfilled `YOUR_...` placeholders without contacting Molab.
+
+The ZIP keeps the exact `.molab.example` filename. The separate GitHub asset is labeled `.molab.example` and downloads as `molab.example`, because GitHub strips leading periods from asset names. Rename that standalone copy to `.molab_local.json` for private setup, or use the complete ZIP and `python -m tools.configure`.
