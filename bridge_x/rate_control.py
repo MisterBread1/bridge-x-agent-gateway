@@ -96,6 +96,10 @@ class RateController:
         if self.enabled and self.store is not None and self.key:
             self.store.save_provider_control(self.key, self.blocked_until, self.last_start, self.failures, self.interval, self.last_limit)
 
+    async def flush(self):
+        if self.store is not None and hasattr(self.store, "flush"):
+            await self.store.flush()
+
     def note_limit(self, hint=None):
         now = time.time()
         if now - self.last_limit >= self.recovery_window:
@@ -181,6 +185,7 @@ class RateController:
                     self.foreground_waiters -= 1
                 self.condition.notify_all()
         try:
+            await self.flush()
             yield
         finally:
             if admitted:

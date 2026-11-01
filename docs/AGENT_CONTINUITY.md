@@ -1,4 +1,4 @@
-# Agent continuity investigation — 12.13.0 candidate
+# Agent continuity investigation — 12.13.0
 
 [README](../README.md) · [Architecture](ARCHITECTURE.md) · [Doctor](DOCTOR.md) · [Testing](TESTING.md)
 
@@ -82,7 +82,7 @@ Failures retain existing HTTP/SSE error contracts and are recorded as `recovery_
 
 Events cover request receipt, provider generation, native proposal, dispatch, actual new receipt, outcome classification, compaction, provider finish, completion delivery, cancellation and recovery/failure. Replayed history does not generate duplicate receipt events. Fields are fixed categories, safe counters, generated/hashed correlation IDs and times. Commands, paths, model text, file content, headers, session identifiers and runtime URLs are excluded from normal event logs and the shareable report.
 
-Existing `diagnostics` gains nullable metadata columns; `operations` gains nullable `argument_hash`. SQLite `user_version` migrates from 3 to 4 in the same journal. Existing rows, dispatch guards, operation events and rate metadata remain. Tests exercise old-schema upgrades and reopen. Doctor inspects old databases read-only and never migrates them.
+Existing `diagnostics` gains nullable metadata columns; `operations` gains nullable `argument_hash`. SQLite `user_version` migrates from 3/4 to 5 in the same journal. Existing rows, dispatch guards, operation events and rate metadata remain. Tests exercise old-schema upgrades and reopen. Doctor inspects old databases read-only and never migrates them.
 
 ## Validation and release gate
 
@@ -90,4 +90,4 @@ Existing `diagnostics` gains nullable metadata columns; `operations` gains nulla
 
 `python -m tools.continuity_acceptance` executes **Read → Edit → Read → Bash → Read → Edit → Bash → Final**, in JSON and SSE modes. It creates real temporary files, checks exact CSS and an unchanged neighbor, executes a fixed Python checker twice with genuinely empty stdout, proves each checker ran once, validates every retained native input/result pair and reopens SQLite on each of eight turns. Its upstream refuses to advance without all corresponding receipt values. It is a scripted native wire fixture, not live ZCode/Molab integration or a model reasoning benchmark.
 
-The complete legacy regression suite, HTTP acceptance, native CSS acceptance, source/ZIP audits and a fresh extracted-ZIP environment are required before publication. The current investigation does **not** prove the original live semantic stop cause. Per the requested release gate, publish this work as a reviewable PR and **withhold a new release and merge** until an authorized live trace or similarly convincing evidence resolves that gap. The existing stable release remains available. Do not label scripted evidence as a live fix verification.
+The complete legacy regression suite, HTTP acceptance, native CSS acceptance, source/ZIP audits and a fresh extracted-ZIP environment are required before publication. The original live semantic stop cause remains unproved. The owner subsequently authorized the audit repairs, real workbench and a new stable release; publication is gated by local and hosted checks. Scripted evidence is not presented as live model reasoning or installed-client certification. See [current fixes and scope](REVIEW_FIXES.md).

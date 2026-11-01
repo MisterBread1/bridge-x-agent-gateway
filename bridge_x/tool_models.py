@@ -18,6 +18,7 @@ class OperationState(StrEnum):
     CANCELLED = "CANCELLED"
     TIMED_OUT = "TIMED_OUT"
     EXECUTION_UNKNOWN = "EXECUTION_UNKNOWN"
+    RESOLVED_BY_CHECK = "RESOLVED_BY_CHECK"
 
 
 @dataclass(frozen=True)

@@ -12,9 +12,9 @@ Bridge X translates provider responses into Chat Completions messages, validates
 
 [Alternative: execution ledger](docs/assets/bridge-x-demo-ledger.gif) · [Demo scope and creation](docs/DEMO.md)
 
-**Candidate version: 12.13.0 · Published stable: 12.12.3 · Python: 3.11+**
+**Stable version: 12.13.0 · Python: 3.11+**
 
-This branch adds agent-continuity repairs, offline Doctor and sanitized reports. The [investigation](docs/AGENT_CONTINUITY.md) distinguishes reproduced protocol defects from the still-unconfirmed cause of the original live early stop. A new release is withheld pending that evidence.
+This release adds a local operator workbench, long-session context recovery, stronger receipt reconciliation and offline diagnostics. The [investigation](docs/AGENT_CONTINUITY.md) distinguishes verified protocol repairs from external model behavior.
 
 [Quick Start](#quick-start) · [Configuration](docs/CONFIGURATION.md) · [Architecture](docs/ARCHITECTURE.md) · [File guide](docs/FILE_GUIDE.md) · [Testing](docs/TESTING.md) · [Contributing](CONTRIBUTING.md)
 
@@ -51,6 +51,10 @@ The gateway validates and delivers calls. The client executes tools. A proposed 
 - The pinned packages in `requirements.txt`; `requirements-dev.txt` adds the test tools.
 - A compatible client for interactive agent work. Molab requires a current operator-supplied runtime configuration. A notebook URL alone is insufficient.
 
+## Local workbench
+
+Double-click **`start-ui.bat`**, or run `python -m bridge_x --ui`. Open the generated `local.key` file in the login screen, then configure Molab under **Connection**. Existing private connection values are never sent back to the page. The workbench shows real client actions, outcome checks and sanitized diagnostics; it does not execute client tools. [Workbench and upgrade guide](docs/WORKBENCH.md).
+
 ## Quick Start
 
 Windows shortcut: after preparing your local Molab configuration below, double-click `start.bat`. It creates `.venv` and installs the pinned runtime dependencies if needed, then starts the same Python CLI. Python 3.11+ must be available through `py -3` or `python`; first-time installation needs package-download access. Existing configuration and other servers are not changed. CLI arguments are forwarded, for example `start.bat --provider fake --port 18787`.
@@ -69,7 +73,7 @@ The **fake** provider is an offline protocol simulator; it requires no account o
 Invoke-RestMethod http://127.0.0.1:18787/health
 ```
 
-Expect `status: ok`, version `12.13.0` from this candidate, and provider `fake`. The Python CLI never installs software; `start.bat` runs the pinned requirements installer when its dependency import check fails. An existing environment that passes that check is reused without verifying every package version.
+Expect `status: ok`, version `12.13.0`, and provider `fake`. The Python CLI never installs software; `start.bat` runs the pinned requirements installer when its dependency import check fails. An existing environment that passes that check is reused without verifying every package version.
 
 ### Send a local API request
 
@@ -145,7 +149,7 @@ Requests with `stream: true` receive SSE role/content/tool deltas and heartbeat 
 
 ## State Recovery
 
-The local SQLite journal stores operation metadata, receipts, execution scopes, and cooldown state. Reuse the same client session identity and journal file when resuming. Unconfirmed mutations remain unconfirmed; the gateway does not execute or blindly replay shell commands. Back up SQLite using its backup API while active, or copy it only after your gateway stops. Do not delete pending records merely to continue a task.
+The local SQLite journal stores operation metadata, receipts, execution scopes, and cooldown state. Reuse the same client session identity and journal file when resuming. Unconfirmed mutations remain unconfirmed; the gateway does not execute or blindly replay shell commands. Run `python -m bridge_x backup --output backup.sqlite3` for a consistent new backup file, including committed WAL state. Do not delete pending records merely to continue a task.
 
 `EXECUTED` means the client explicitly reported success; `VERIFIED` additionally records matching digests supplied by that client. Bridge X does not independently read the client's filesystem. [Recovery behavior and limits](docs/ARCHITECTURE.md#persistence-and-recovery) explain missing receipts, restored history, and restart protection.
 

@@ -48,6 +48,11 @@ def read_molab_config(filename: str) -> MolabConfiguration:
         raise BridgeError("MOLAB_CONFIG_MISSING", "The .molab_local.json file was not found", 503) from exc
     except (OSError, UnicodeError, ValueError) as exc:
         raise BridgeError("MOLAB_CONFIG_INVALID", "The .molab_local.json file is unreadable or invalid JSON", 503) from exc
+    return validate_molab_config(raw)
+
+
+def validate_molab_config(raw):
+    """Shared local validation for files and explicit GUI configuration saves."""
     if not isinstance(raw, dict) or not valid_value(raw):
         raise BridgeError("MOLAB_CONFIG_INVALID", "Expected a JSON object in .molab_local.json", 503)
     url = raw.get("chat_url")
@@ -496,6 +501,9 @@ class MolabProvider:
         self.rate_controller = RateController(settings)
         self.live_verified = False
         self.native_tools_verified = False
+        self.last_success_at = None
+        self.last_failure_at = None
+        self.last_failure_code = None
         self.tool_protocol = "native" if settings.molab_tool_mode != "structured" else "structured_json_intent"
         # Only a digest, count, and timestamp are held in RAM; no messages,
         # tool arguments, response bodies, addresses or tokens are retained.
@@ -510,6 +518,18 @@ class MolabProvider:
 
     def rate_status(self):
         return self.rate_controller.status()
+
+    def connection_status(self):
+        age = None if self.last_success_at is None else max(0, time.time() - self.last_success_at)
+        return {"verified": self.live_verified and age is not None and age <= 120,
+                "last_success_at": self.last_success_at, "last_failure_at": self.last_failure_at,
+                "last_failure_code": self.last_failure_code, "freshness_seconds": age}
+
+    def observe_failure(self, code):
+        self.last_failure_at = time.time()
+        self.last_failure_code = code
+        if code not in ("MOLAB_RATE_LIMIT", "UPSTREAM_RATE_LIMIT", "UPSTREAM_QUOTA_EXHAUSTED", "MOLAB_QUEUE_TIMEOUT", "MOLAB_COOLDOWN_ACTIVE"):
+            self.live_verified = False
 
     @staticmethod
     def _request_fingerprint(req, messages: list[dict]) -> str:
@@ -545,9 +565,22 @@ class MolabProvider:
         # Output guidance is independent of rate recovery and authorization.
 
     async def generate(self, req, messages):
+        from .context import compact, _length
+        from .providers import ContextRecovery
         started = time.monotonic()
         retries = 0
         emitted = False
+        context_recovered = False
+
+        def smaller_context():
+            if emitted or context_recovered or time.monotonic() - started >= self.settings.timeout_s - 10:
+                return None
+            before = _length(messages)
+            try:
+                bounded, stats = compact(messages, max(1, before // 2), max_single_tool=1500)
+            except BridgeError:
+                return None
+            return (bounded, stats) if stats["after_chars"] <= before * 0.75 else None
 
         def can_retry(safe):
             reserve = min(10.0, self.settings.timeout_s * 0.1)
@@ -558,6 +591,7 @@ class MolabProvider:
 
         while True:
             pending = None
+            recovery = None
             reserve = min(10.0, self.settings.timeout_s * 0.1)
             remaining = max(0.001, self.settings.timeout_s - (time.monotonic() - started) - reserve)
             queue_wait = remaining if self.rate_controller.retry_limit else None
@@ -566,18 +600,37 @@ class MolabProvider:
                 # for another attempt. No client tool is replayed here.
                 async with aclosing(self._generate_once(req, messages, queue_wait_s=queue_wait)) as events:
                     async for event in events:
+                        if isinstance(event, Failed) and event.code == "UPSTREAM_CONTEXT_LIMIT" and event.safe_to_retry:
+                            recovery = smaller_context()
+                            if recovery is not None:
+                                break
                         if isinstance(event, Failed) and event.code == "UPSTREAM_RATE_LIMIT" and can_retry(event.safe_to_retry):
                             pending = RateLimitWait(event.code, event.diagnostics)
                             break
                         if isinstance(event, (TextDelta, NativeToolDelta, Finish)):
                             emitted = True
+                        if isinstance(event, Failed):
+                            self.observe_failure(event.code)
                         yield event
             except UpstreamError as exc:
+                self.observe_failure(exc.code)
+                if exc.code == "UPSTREAM_CONTEXT_LIMIT":
+                    recovery = smaller_context()
+                    if recovery is None:
+                        raise
                 # These codes are raised only for explicit HTTP 429 responses,
                 # not transport failures, permanent quota, or unknown outcomes.
-                if exc.code != "MOLAB_RATE_LIMIT" or not can_retry(True):
+                elif exc.code != "MOLAB_RATE_LIMIT" or not can_retry(True):
                     raise
-                pending = RateLimitWait(exc.code)
+                else:
+                    pending = RateLimitWait(exc.code)
+            finally:
+                await self.rate_controller.flush()
+            if recovery is not None:
+                messages, stats = recovery
+                context_recovered = True
+                yield ContextRecovery(stats["before_chars"], stats["after_chars"])
+                continue
             if pending is None:
                 return
             retries += 1
@@ -590,7 +643,7 @@ class MolabProvider:
         payload = build_molab_payload(req, messages, cfg, advisory_budget,
                                       protocol="structured" if self.settings.molab_tool_mode == "structured" else "native")
         encoded = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-        if len(encoded) > self.settings.max_request_bytes:
+        if len(encoded) > min(self.settings.max_request_bytes, self.settings.max_upstream_request_bytes):
             raise UpstreamError("MOLAB_PAYLOAD_TOO_LARGE", "Molab payload exceeds local safety limit; reduce conversation history", 413)
         headers = {"Accept": "text/event-stream", "Content-Type": "application/json",
                    "Marimo-Session-Id": cfg.session_id,
@@ -627,6 +680,8 @@ class MolabProvider:
                                 raise UpstreamError("MOLAB_ACCESS_DENIED", "Molab did not authorize the request", 502)
                             if status == 410:
                                 raise UpstreamError("MOLAB_RUNTIME_GONE", "Configured Molab runtime is no longer available", 410)
+                            if status == 413:
+                                raise UpstreamError("UPSTREAM_CONTEXT_LIMIT", "Molab rejected the input size before generation", 413)
                             if status == 429:
                                 # A 429 may mean exhausted credits rather than a
                                 # short-lived rate cap. Inspect bounded JSON only;
@@ -694,7 +749,7 @@ class MolabProvider:
                                         }
                                         message = (f"Molab rate limit: wait at least {max(1, int(retry_delay))} seconds before another generation; no tool was dispatched"
                                                    if output.code == "UPSTREAM_RATE_LIMIT" and retry_delay is not None else output.message)
-                                        safe = (output.code == "UPSTREAM_RATE_LIMIT" and not text_seen
+                                        safe = (output.code in ("UPSTREAM_RATE_LIMIT", "UPSTREAM_CONTEXT_LIMIT") and not text_seen
                                                 and not fallback and not native.entries and not seen_finish and not seen_done)
                                         yield Failed(output.code, message, metrics, retry_delay, safe_to_retry=safe)
                                         return
@@ -749,6 +804,8 @@ class MolabProvider:
                         self._observe_outcome(fingerprint, None)
                         self.rate_controller.note_success()
                         self.live_verified = True
+                        self.last_success_at = time.time()
+                        self.last_failure_code = None
                         yield Finish("tool_calls" if native_calls else "stop")
         except httpx.TransportError as exc:
             raise UpstreamError("MOLAB_TRANSPORT_ERROR", "Molab connection failed or timed out", 502, True) from exc

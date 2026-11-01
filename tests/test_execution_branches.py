@@ -163,7 +163,8 @@ def test_real_zcode_headers_separate_background_from_foreground_pending_operatio
         main = client.post("/v1/chat/completions", headers={**AUTH, "x-zcode-query-source": "main_turn"}, json=main_body)
         assert main.status_code == 200
         rows = client.app.state.journal.db.execute("SELECT execution_scope FROM operations").fetchall()
-        assert rows[0][0].startswith("project_memory_extract:") and rows[1][0] == "main_turn"
+        assert len(rows) == 2 and "main_turn" in {r[0] for r in rows}
+        assert any(r[0].startswith("project_memory_extract:") for r in rows)
 
 
 def test_scope_survives_restart_and_original_pending_operations_remain_protected(tmp_path):
@@ -175,7 +176,7 @@ def test_scope_survives_restart_and_original_pending_operations_remain_protected
     try:
         journal.ensure_new_turn("main", "session")
         assert journal.operation("memory")["execution_scope"] == "project_memory_extract:one"
-        assert journal.db.execute("PRAGMA user_version").fetchone()[0] == 4
+        assert journal.db.execute("PRAGMA user_version").fetchone()[0] == 5
         with pytest.raises(BridgeError):
             journal.ensure_new_turn("same-branch", "session", execution_scope="project_memory_extract:one")
     finally:

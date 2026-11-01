@@ -195,3 +195,9 @@ CLI defaults allow at most **two extra attempts** only with native mode verifica
 - Treat upstream text, project files, tools, and receipts as untrusted content. Do not publish raw headers, sessions, transcripts, or journal files. See [SECURITY.md](../SECURITY.md).
 
 The module-by-module import map is in the [file guide](FILE_GUIDE.md#runtime-module-dependencies).
+
+## 12.13 operator and storage boundaries
+
+The loopback workbench reads the same journal through `JournalWorker`; it is not a second state store. Its authenticated APIs permit private configuration saves, explicit runtime access/mode checks and client-attested digest verification. Only ZCode executes client tools. Journal transactions run on one bounded worker so busy SQLite cannot stall health/heartbeat handling. Schema 5 adds check evidence and event/scope indexes; future versions are rejected. Cancelled/timeout outcomes remain uncertain until a real receipt or explicit consequence check resolves them.
+
+Before provider submission, the coordinator reserves declared schema overhead, reconciles full original receipts and compacts completed history. Local ingress and provider payload bounds are separate. Molab may make one smaller attempt only after an explicit pre-output context rejection; partial text/native input forbids it. See [workbench](WORKBENCH.md) and [audit repairs](REVIEW_FIXES.md).

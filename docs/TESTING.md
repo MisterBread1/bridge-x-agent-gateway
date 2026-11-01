@@ -19,7 +19,7 @@ Do not inherit a real provider's `BRIDGEX_*` settings into a test run. In a fres
 
 ## Continuity and Doctor regressions
 
-Run `python -m pytest tests/test_continuity.py tests/test_doctor.py -q` and `python -m tools.continuity_acceptance`. The long fixture checks seven unique actions across eight SQLite reopens, real CSS edits, unchanged neighbors and two empty-stdout Python checks, in JSON and SSE modes. The peer validates all preceding native receipt/input pairs before advancing. This is simulated upstream protocol evidence, not live model reasoning. See [baseline failures and release gate](AGENT_CONTINUITY.md).
+Run `python -m pytest tests/test_continuity.py tests/test_doctor.py -q` and `python -m tools.continuity_acceptance`. The long fixture checks seven unique actions across eight SQLite reopens, real CSS edits, unchanged neighbors and two empty-stdout Python checks, in JSON and SSE modes. The peer validates all preceding native receipt/input pairs before advancing. This is simulated upstream protocol evidence, not live model reasoning. See [baseline failures and validation scope](AGENT_CONTINUITY.md).
 
 ## Coverage by behavior
 
@@ -95,3 +95,7 @@ The existing Starlette/httpx test-client deprecation warning should remain visib
 ## Stable publication gate
 
 `python -m tools.verify_release <complete.zip> --work-dir <temporary-directory>` validates exact archive checksum coverage and installs a fresh Python environment from that extracted ZIP, then runs pip check, compileall, full pytest, HTTP smoke, native CSS acceptance, and syntax-only fake startup. It downloads test dependencies and never contacts a live model. The release workflow requires this gate before publication. `test_release_verification.py` tests traversal/wrong-root rejection, missing manifest coverage, and the named-media audit boundary.
+
+## Workbench and long-session regressions
+
+Run `python -m pytest tests/test_review_regressions.py tests/test_local_ui.py tests/test_long_session.py tests/test_node_title.py -q`. These use temporary journals, fixture keys and controlled upstreams. Installed-package checks in `tools.verify_release` deliberately run outside the source tree and require actual bundled UI assets, authentication and the console entry point. Runtime dependency pins are unchanged; build dependencies are installed only for packaging.

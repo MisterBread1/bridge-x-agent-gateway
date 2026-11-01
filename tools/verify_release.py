@@ -70,8 +70,25 @@ def main():
         ]
         for command in commands:
             subprocess.run([str(python), '-B', *command], cwd=package, env=env, check=True, timeout=300)
+        # Install the actual package, then probe it outside the extracted
+        # source directory so imports cannot accidentally use the checkout.
+        subprocess.run([str(python), '-m', 'pip', 'install', '--no-deps', str(package)],
+                       cwd=workspace, env=env, check=True, timeout=300)
+        probe = """from importlib.resources import files
+from bridge_x.config import Settings
+from bridge_x.gateway import create_app
+from fastapi.testclient import TestClient
+assert files('bridge_x').joinpath('ui/index.html').is_file()
+with TestClient(create_app(Settings(journal_path=':memory:')), base_url='http://127.0.0.1') as client:
+    assert client.get('/ui/').status_code == 200
+    assert client.get('/ui/assets/app.js').status_code == 200
+    assert client.get('/ui/api/snapshot').status_code == 401
+"""
+        subprocess.run([str(python), '-I', '-c', probe], cwd=workspace, env=env, check=True, timeout=30)
+        entry = environment / ('Scripts/bridge-x.exe' if os.name == 'nt' else 'bin/bridge-x')
+        subprocess.run([str(entry), 'doctor', '--provider', 'fake', '--port', '0'], cwd=workspace, env=env, check=True, timeout=30)
     print(json.dumps({'version': __version__, 'members': count, 'clean_zip_environment': True,
-                      'checks': len(commands), 'passed': True, 'live_provider': False}))
+                      'checks': len(commands) + 3, 'installed_package_ui': True, 'passed': True, 'live_provider': False}))
     return 0
 
 

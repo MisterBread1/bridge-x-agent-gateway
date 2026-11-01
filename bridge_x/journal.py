@@ -5,6 +5,7 @@ import threading
 import re
 import hashlib
 import json
+from contextlib import contextmanager
 from .errors import BridgeError
 from .tool_models import OperationState
 from .observability import log_event, safe_fields, report_events, tool_type
@@ -24,9 +25,11 @@ _RESULT_STATES = {
 _TRANSITIONS = {
     "PROPOSED": {"VALIDATED", "REJECTED", "CANCELLED"},
     "VALIDATED": {"DISPATCHED", "REJECTED", "CANCELLED"},
-    "DISPATCHED": {"ACKNOWLEDGED", "EXECUTION_UNKNOWN", "CANCELLED", "TIMED_OUT"},
-    "EXECUTION_UNKNOWN": {"ACKNOWLEDGED", "CANCELLED", "TIMED_OUT"},
-    "ACKNOWLEDGED": {"EXECUTED", "FAILED", "CANCELLED", "TIMED_OUT"},
+    "DISPATCHED": {"ACKNOWLEDGED", "EXECUTION_UNKNOWN", "CANCELLED", "TIMED_OUT", "RESOLVED_BY_CHECK"},
+    "EXECUTION_UNKNOWN": {"ACKNOWLEDGED", "CANCELLED", "TIMED_OUT", "RESOLVED_BY_CHECK"},
+    "ACKNOWLEDGED": {"EXECUTED", "FAILED", "CANCELLED", "TIMED_OUT", "RESOLVED_BY_CHECK"},
+    "CANCELLED": {"ACKNOWLEDGED", "RESOLVED_BY_CHECK"},
+    "TIMED_OUT": {"ACKNOWLEDGED", "RESOLVED_BY_CHECK"},
     "EXECUTED": {"VERIFIED"},
 }
 
@@ -35,10 +38,18 @@ class Journal:
     def __init__(self, filename: str):
         self.db = sqlite3.connect(filename, check_same_thread=False, timeout=10, isolation_level="DEFERRED")
         self.lock = threading.RLock()
+        self._transaction_depth = 0
         with self.lock:
+            version = self.db.execute("PRAGMA user_version").fetchone()[0]
+            if version > 5:
+                self.db.close()
+                raise BridgeError("JOURNAL_NEWER_SCHEMA", "This journal needs a newer Bridge X; no migration was attempted", 503)
             self.db.execute("PRAGMA busy_timeout=10000")
             if filename != ":memory:":
-                self.db.execute("PRAGMA journal_mode=WAL")
+                # Avoid the documented WAL-reset race on unpatched SQLite.
+                v = sqlite3.sqlite_version_info
+                wal_safe = v >= (3, 51, 3) or ((3, 50, 7) <= v < (3, 51)) or ((3, 44, 6) <= v < (3, 45))
+                self.db.execute("PRAGMA journal_mode=" + ("WAL" if wal_safe else "DELETE"))
             self.db.executescript("""
                 CREATE TABLE IF NOT EXISTS intents(
                   call_id TEXT PRIMARY KEY, conversation_id TEXT, name TEXT NOT NULL,
@@ -75,6 +86,11 @@ class Journal:
                   conversation_id TEXT, execution_scope TEXT NOT NULL,
                   query_source TEXT NOT NULL, tool_count INTEGER NOT NULL,
                   created_at TEXT DEFAULT CURRENT_TIMESTAMP);
+                CREATE TABLE IF NOT EXISTS operation_checks(
+                  call_id TEXT PRIMARY KEY, expected_sha256 TEXT NOT NULL,
+                  observed_sha256 TEXT NOT NULL, execution_stopped INTEGER NOT NULL,
+                  created_at TEXT DEFAULT CURRENT_TIMESTAMP);
+                CREATE INDEX IF NOT EXISTS operation_events_call ON operation_events(call_id,seq);
             """)
             # Upgrading an existing V12.9 SQLite journal must not require
             # deleting the user's state or restarting with a fresh database.
@@ -104,7 +120,43 @@ class Journal:
                          WHEN result_kind IN ('exit_nonzero','reported_failure') THEN 'FAILED'
                          ELSE 'ACKNOWLEDGED' END,
                     'legacy_migration',result_kind,created_at FROM intents""")
-                self.db.execute("PRAGMA user_version=4")
+                if version < 5:
+                    # Old generic success flags cannot certify a shell exit.
+                    self.db.execute("""INSERT INTO operation_events(call_id,state)
+                        SELECT call_id,'ACKNOWLEDGED' FROM operations
+                        WHERE lower(name) IN ('bash','terminal','shell','exec')
+                        AND result_kind='reported_success' AND state!='VERIFIED'""")
+                    self.db.execute("""UPDATE operations SET state='ACKNOWLEDGED',result_kind='unknown'
+                        WHERE lower(name) IN ('bash','terminal','shell','exec')
+                        AND result_kind='reported_success' AND state!='VERIFIED'""")
+                    self.db.execute("""UPDATE intents SET result_kind='unknown' WHERE call_id IN
+                        (SELECT call_id FROM operations WHERE result_kind='unknown' AND state='ACKNOWLEDGED')""")
+                self.db.execute("CREATE INDEX IF NOT EXISTS operations_scope ON operations(conversation_id,execution_scope,state)")
+                self.db.execute("PRAGMA user_version=5")
+
+    @contextmanager
+    def transaction(self, immediate=False):
+        """One transaction for a whole reconciliation, including nested helpers."""
+        with self.lock:
+            outer = self._transaction_depth == 0
+            if outer:
+                self.db.execute("BEGIN IMMEDIATE" if immediate else "BEGIN")
+            self._transaction_depth += 1
+            try:
+                yield
+            except BaseException:
+                if outer:
+                    self.db.rollback()
+                raise
+            else:
+                if outer:
+                    try:
+                        self.db.commit()
+                    except BaseException:
+                        self.db.rollback()
+                        raise
+            finally:
+                self._transaction_depth -= 1
 
     def _transition(self, call_id, state):
         row = self.db.execute("SELECT state FROM operations WHERE call_id=?", (call_id,)).fetchone()
@@ -122,7 +174,7 @@ class Journal:
             if request_key is not None and self.db.execute("SELECT 1 FROM dispatch_requests WHERE request_key=?", (request_key,)).fetchone():
                 raise BridgeError("EXECUTION_UNKNOWN", "This request already dispatched tools; reconcile their results before retrying", 409)
             if tools_allowed and conversation_id is not None:
-                pending = self.db.execute("SELECT 1 FROM operations WHERE conversation_id=? AND execution_scope=? AND state IN ('DISPATCHED','EXECUTION_UNKNOWN') AND source='gateway' LIMIT 1", (conversation_id, execution_scope)).fetchone()
+                pending = self.db.execute("SELECT 1 FROM operations WHERE conversation_id=? AND execution_scope=? AND state IN ('DISPATCHED','EXECUTION_UNKNOWN') AND source IN ('gateway','client_history') LIMIT 1", (conversation_id, execution_scope)).fetchone()
                 if pending:
                     raise BridgeError("EXECUTION_UNKNOWN", "Conversation has tools without execution receipts; provide their results before further actions", 409)
 
@@ -136,25 +188,30 @@ class Journal:
             result["events"] = [r[0] for r in self.db.execute("SELECT state FROM operation_events WHERE call_id=? ORDER BY seq", (call_id,))]
             return result
 
-    def verify(self, call_id, conversation_id, expected_sha256, observed_sha256):
+    def verify(self, call_id, conversation_id, expected_sha256, observed_sha256, execution_stopped=False):
         """Accept a client's explicit readback check, never infer it from text."""
         if (not isinstance(expected_sha256, str) or not re.fullmatch(r"[a-fA-F0-9]{64}", expected_sha256)
                 or not isinstance(observed_sha256, str) or expected_sha256.lower() != observed_sha256.lower()):
             raise BridgeError("VERIFICATION_FAILED", "Readback digests are invalid or differ", 409)
-        with self.lock, self.db:
+        with self.transaction():
             operation = self.operation(call_id)
             if operation is None:
                 raise BridgeError("ORPHAN_TOOL_RESULT", "Operation does not exist", 409)
             if operation["conversation_id"] != conversation_id:
                 raise BridgeError("CROSS_CONVERSATION_RECEIPT", "Verification belongs to another conversation", 409)
-            self._transition(call_id, "VERIFIED")
+            state = operation["status"]
+            uncertain = state in ("DISPATCHED", "EXECUTION_UNKNOWN", "ACKNOWLEDGED", "CANCELLED", "TIMED_OUT", "RESOLVED_BY_CHECK")
+            if uncertain and not execution_stopped:
+                raise BridgeError("RECOVERY_CHECK_REQUIRED", "Confirm execution has stopped before resolving uncertain effects", 409)
+            self.db.execute("INSERT OR REPLACE INTO operation_checks(call_id,expected_sha256,observed_sha256,execution_stopped) VALUES(?,?,?,?)",
+                            (call_id, expected_sha256.lower(), observed_sha256.lower(), int(execution_stopped)))
+            self._transition(call_id, "RESOLVED_BY_CHECK" if uncertain else "VERIFIED")
             return self.operation(call_id)
 
-    def deliver(self, calls, conversation_id=None, request_key=None, *, execution_scope="main_turn"):
-        with self.lock, self.db:
+    def deliver(self, calls, conversation_id=None, request_key=None, *, execution_scope="main_turn", history_call_ids=()):
+        with self.transaction(immediate=True):
             # BEGIN IMMEDIATE serializes the check and write across processes.
-            self.db.execute("BEGIN IMMEDIATE")
-            self.guard_uncertain_replay(calls, conversation_id, execution_scope)
+            self.guard_uncertain_replay(calls, conversation_id, execution_scope, history_call_ids)
             if request_key is not None:
                 self.ensure_new_turn(request_key, conversation_id, execution_scope=execution_scope)
                 self.db.execute("INSERT INTO dispatch_requests(request_key,conversation_id) VALUES(?,?)", (request_key, conversation_id))
@@ -170,26 +227,37 @@ class Journal:
                 self._transition(call.id, "VALIDATED")
                 self._transition(call.id, "DISPATCHED")
 
-    def guard_uncertain_replay(self, calls, conversation_id, execution_scope):
+    def guard_uncertain_replay(self, calls, conversation_id, execution_scope, history_call_ids=()):
         # Read/search checks are client-owned too. Only block repeated mutations,
         # never schedule a verification tool or invent a new client request.
         for call in calls:
             if call.name.lower() in {"read", "glob", "grep", "list", "search"}:
                 continue
+            anonymous_filter = ""
+            parameters = [conversation_id, execution_scope, call.name, argument_fingerprint(call.arguments)]
+            if conversation_id is None:
+                if not history_call_ids:
+                    continue
+                anonymous_filter = " AND call_id IN (" + ",".join("?" for _ in history_call_ids) + ")"
+                parameters.extend(history_call_ids)
             row = self.db.execute("""SELECT 1 FROM operations WHERE conversation_id IS ? AND execution_scope=? AND name=?
                 AND (argument_hash=? OR argument_hash IS NULL)
                 AND ((state='ACKNOWLEDGED' AND (result_kind='unknown' OR result_kind IS NULL))
-                     OR state IN ('EXECUTION_UNKNOWN','TIMED_OUT','CANCELLED')) LIMIT 1""",
-                (conversation_id, execution_scope, call.name, argument_fingerprint(call.arguments))).fetchone()
+                     OR state IN ('EXECUTION_UNKNOWN','DISPATCHED','TIMED_OUT','CANCELLED'))""" + anonymous_filter + " LIMIT 1", parameters).fetchone()
             if row:
                 raise BridgeError("EXECUTION_UNKNOWN", "A matching mutation has an uncertain outcome; verify actual client state and supply a confirmed receipt before repeating it", 409)
 
-    def continuity(self, conversation_id, execution_scope="main_turn"):
+    def continuity(self, conversation_id, execution_scope="main_turn", call_ids=()):
         with self.lock:
-            rows = self.db.execute("SELECT state,result_kind FROM operations WHERE conversation_id IS ? AND execution_scope=?",
-                                   (conversation_id, execution_scope)).fetchall()
+            if conversation_id is None:
+                if not call_ids:
+                    return {"pending_operations": 0, "unknown_outcomes": 0}
+                rows = self.db.execute("SELECT state,result_kind FROM operations WHERE call_id IN (" + ",".join("?" for _ in call_ids) + ")", list(call_ids)).fetchall()
+            else:
+                rows = self.db.execute("SELECT state,result_kind FROM operations WHERE conversation_id=? AND execution_scope=?",
+                                       (conversation_id, execution_scope)).fetchall()
         pending = sum(state in ("DISPATCHED", "EXECUTION_UNKNOWN") for state, _ in rows)
-        unknown = sum(state == "EXECUTION_UNKNOWN" or (state == "ACKNOWLEDGED" and kind in (None, "unknown")) for state, kind in rows)
+        unknown = sum(state in ("EXECUTION_UNKNOWN", "CANCELLED", "TIMED_OUT") or (state == "ACKNOWLEDGED" and kind in (None, "unknown")) for state, kind in rows)
         return {"pending_operations": pending, "unknown_outcomes": unknown}
 
     def safe_report(self):
@@ -200,7 +268,7 @@ class Journal:
         # Only correlation metadata; never headers, prompts or argument bodies.
         client_id = client_request_id if isinstance(client_request_id, str) and re.fullmatch(r"[a-zA-Z0-9_.:-]{1,256}", client_request_id) else None
         source = query_source if isinstance(query_source, str) and re.fullmatch(r"[a-zA-Z0-9_.-]{1,80}", query_source) else "main_turn"
-        with self.lock, self.db:
+        with self.transaction():
             self.db.execute("INSERT INTO client_requests(request_id,client_request_id,conversation_id,execution_scope,query_source,tool_count) VALUES(?,?,?,?,?,?)",
                             (request_id, client_id, conversation_id, execution_scope, source, tool_count))
 
@@ -213,32 +281,48 @@ class Journal:
             self.db.execute("ALTER TABLE provider_control ADD COLUMN last_limit REAL NOT NULL DEFAULT 0")
 
     def load_provider_control(self, key):
-        with self.lock, self.db:
+        with self.transaction():
             self._provider_control_table()
             row = self.db.execute("SELECT blocked_until,last_start,failures,interval_s,last_limit FROM provider_control WHERE provider_key=?", (key,)).fetchone()
         return dict(zip(("blocked_until", "last_start", "failures", "interval_s", "last_limit"), row)) if row else None
 
     def save_provider_control(self, key, blocked_until, last_start, failures, interval_s, last_limit=0):
-        with self.lock, self.db:
+        with self.transaction():
             self._provider_control_table()
             self.db.execute("INSERT OR REPLACE INTO provider_control(provider_key,blocked_until,last_start,failures,interval_s,last_limit) VALUES(?,?,?,?,?,?)",
                             (key, blocked_until, last_start, failures, interval_s, last_limit))
 
     def receive(self, call_id: str, conversation_id=None, result_kind="unknown"):
-        with self.lock, self.db:
+        with self.transaction():
             row = self.db.execute("SELECT conversation_id,status FROM intents WHERE call_id=?", (call_id,)).fetchone()
             if row is None:
                 raise BridgeError("ORPHAN_TOOL_RESULT", "Tool result references unknown tool call", 409)
             owner, status = row
             if conversation_id is not None and owner is not None and conversation_id != owner:
                 raise BridgeError("CROSS_CONVERSATION_RECEIPT", "Result belongs to another conversation", 409)
-            self.db.execute("UPDATE intents SET conversation_id=COALESCE(conversation_id, ?) WHERE call_id=?",
-                            (conversation_id, call_id))
-            self.db.execute("UPDATE operations SET conversation_id=COALESCE(conversation_id, ?) WHERE call_id=?", (conversation_id, call_id))
+            if owner is None and conversation_id is not None:
+                self.db.execute("UPDATE intents SET conversation_id=? WHERE call_id=?", (conversation_id, call_id))
+                self.db.execute("UPDATE operations SET conversation_id=? WHERE call_id=?", (conversation_id, call_id))
             if status in ("RESULT_RECEIVED", "VERIFIED", "FAILED", "UNVERIFIED_CLIENT_RESULT"):
                 operation = self.operation(call_id)
-                if (status == "RESULT_RECEIVED" and operation is not None and operation["status"] == "ACKNOWLEDGED"
-                        and operation["result_kind"] == "unknown" and result_kind in _RESULT_STATES):
+                if operation is None or status == "UNVERIFIED_CLIENT_RESULT":
+                    return False
+                old_kind, state = operation["result_kind"], operation["status"]
+                if old_kind == result_kind or result_kind == "unknown":
+                    return False
+                if old_kind in ("exit_zero", "exit_nonzero") and result_kind in ("cancelled", "timed_out"):
+                    return False  # stale cancellation notice after an actual final exit
+                if state in ("CANCELLED", "TIMED_OUT") and result_kind in ("exit_zero", "exit_nonzero"):
+                    self._transition(call_id, "ACKNOWLEDGED")
+                elif state == "ACKNOWLEDGED" and old_kind == "unknown" and result_kind in _RESULT_STATES:
+                    pass
+                elif result_kind in _RESULT_STATES and old_kind in _RESULT_STATES:
+                    if _RESULT_STATES[result_kind] != _RESULT_STATES[old_kind]:
+                        raise BridgeError("TOOL_RECEIPT_CONFLICT", "Confirmed client outcomes disagree; reconcile the original operation", 409)
+                    return False
+                else:
+                    return False
+                if result_kind in _RESULT_STATES:
                     # A later genuine structured receipt may resolve an earlier
                     # text-only result. Existing confirmed outcomes are immutable.
                     self._transition(call_id, _RESULT_STATES[result_kind])
@@ -258,7 +342,7 @@ class Journal:
                 self.db.execute("UPDATE operations SET result_kind=? WHERE call_id=?", (result_kind, call_id))
             return True
 
-    def restore_intent_from_history(self, call_id: str, name: str, conversation_id=None, argument_hash=None):
+    def restore_intent_from_history(self, call_id: str, name: str, conversation_id=None, argument_hash=None, execution_scope="main_turn", pair_result=False):
         """Rebuild metadata for a call visible in the *preceding assistant transcript*.
 
         The history proves only that the client presented a tool proposal, not
@@ -267,41 +351,41 @@ class Journal:
         if (not isinstance(call_id, str) or not call_id or len(call_id) > 256
                 or not isinstance(name, str) or not name or len(name) > 256):
             return False
-        with self.lock, self.db:
+        with self.transaction():
             row = self.db.execute(
                 "SELECT conversation_id,name,status FROM intents WHERE call_id=?", (call_id,)
             ).fetchone()
             if row:
-                if argument_hash is not None:
-                    self.db.execute("UPDATE operations SET argument_hash=COALESCE(argument_hash,?) WHERE call_id=?", (argument_hash, call_id))
                 owner, known_name, status = row
                 if owner is not None and conversation_id is not None and owner != conversation_id:
                     raise BridgeError("CROSS_CONVERSATION_RECEIPT", "Result belongs to another conversation", 409)
                 if known_name not in (name, "(unmatched)"):
                     raise BridgeError("TOOL_CALL_ID_CONFLICT", "Conflicting tool call ID in conversation history", 409)
-                self.db.execute("UPDATE intents SET conversation_id=COALESCE(conversation_id, ?) WHERE call_id=?",
-                                (conversation_id, call_id))
-                self.db.execute("UPDATE operations SET conversation_id=COALESCE(conversation_id, ?) WHERE call_id=?", (conversation_id, call_id))
-                if status == "UNVERIFIED_CLIENT_RESULT":
+                known_hash = self.db.execute("SELECT argument_hash FROM operations WHERE call_id=?", (call_id,)).fetchone()
+                if known_hash and argument_hash is not None:
+                    if known_hash[0] is not None and known_hash[0] != argument_hash:
+                        raise BridgeError("TOOL_CALL_ID_CONFLICT", "Historical arguments changed for an existing call ID", 409)
+                    if known_hash[0] is None:
+                        self.db.execute("UPDATE operations SET argument_hash=? WHERE call_id=?", (argument_hash, call_id))
+                if owner is None and conversation_id is not None:
+                    self.db.execute("UPDATE intents SET conversation_id=? WHERE call_id=?", (conversation_id, call_id))
+                    self.db.execute("UPDATE operations SET conversation_id=? WHERE call_id=?", (conversation_id, call_id))
+                if status == "UNVERIFIED_CLIENT_RESULT" and pair_result:
                     self.db.execute(
                         "UPDATE intents SET name=?,schema_hash=?,status=?,conversation_id=COALESCE(conversation_id, ?) WHERE call_id=?",
                         (name, "recovered-from-client-history", "RESULT_RECEIVED", conversation_id, call_id),
                     )
-                    operation = self.operation(call_id)
-                    if operation is not None:
-                        self.db.execute("UPDATE operations SET name=?,schema_version=?,source='client_history' WHERE call_id=?",
-                                        (name, "recovered-from-client-history", call_id))
-                        self._transition(call_id, "ACKNOWLEDGED")
-                        recovered_state = _RESULT_STATES.get(operation["result_kind"])
-                        if recovered_state is not None:
-                            self._transition(call_id, recovered_state)
+                    self.db.execute("UPDATE intents SET result_kind='unknown' WHERE call_id=?", (call_id,))
+                    self.db.execute("UPDATE operations SET name=?,schema_version=?,source='client_history',result_kind='unknown',execution_scope=? WHERE call_id=?",
+                                    (name, "recovered-from-client-history", execution_scope, call_id))
+                    self._transition(call_id, "ACKNOWLEDGED")
                 return False
             self.db.execute(
                 "INSERT INTO intents(call_id,conversation_id,name,schema_hash,status) VALUES(?,?,?,?,?)",
                 (call_id, conversation_id, name, "recovered-from-client-history", "OFFERED_UNCONFIRMED"),
             )
-            self.db.execute("INSERT INTO operations(call_id,conversation_id,name,schema_version,state,source) VALUES(?,?,?,?,?,?)",
-                            (call_id, conversation_id, name, "recovered-from-client-history", "DISPATCHED", "client_history"))
+            self.db.execute("INSERT INTO operations(call_id,conversation_id,name,schema_version,state,source,execution_scope) VALUES(?,?,?,?,?,?,?)",
+                            (call_id, conversation_id, name, "recovered-from-client-history", "DISPATCHED", "client_history", execution_scope))
             self.db.execute("UPDATE operations SET argument_hash=? WHERE call_id=?", (argument_hash, call_id))
             return True
 
@@ -315,7 +399,7 @@ class Journal:
         """
         if not isinstance(call_id, str) or not call_id or len(call_id) > 256:
             raise BridgeError("TOOL_RECEIPT_MISSING_ID", "Tool result lacks a valid tool_call_id", 409)
-        with self.lock, self.db:
+        with self.transaction():
             row = self.db.execute("SELECT conversation_id FROM intents WHERE call_id=?", (call_id,)).fetchone()
             if row is not None:
                 if row[0] is not None and conversation_id is not None and row[0] != conversation_id:
@@ -329,7 +413,11 @@ class Journal:
                             (call_id, conversation_id, "(unmatched)", "unknown", "EXECUTION_UNKNOWN", "unmatched_client_result", result_kind))
             return True
 
-    def reconcile_client_history(self, messages: list[dict], conversation_id=None, classify_result=None, request_id=None):
+    def reconcile_client_history(self, messages: list[dict], conversation_id=None, classify_result=None, request_id=None, execution_scope="main_turn"):
+        with self.transaction():
+            return self._reconcile_history(messages, conversation_id, classify_result, request_id, execution_scope)
+
+    def _reconcile_history(self, messages, conversation_id, classify_result, request_id, execution_scope):
         """Recover call/result relationships from the *original*, un-compacted chat.
 
         Chronological ordering matters: an assistant tool_call must precede its
@@ -359,6 +447,7 @@ class Journal:
                                 fingerprints[call_id] = argument_fingerprint(arguments)
                         except (ValueError, TypeError, RecursionError):
                             pass
+                        recovered += self.restore_intent_from_history(call_id, name, conversation_id, fingerprints.get(call_id), execution_scope)
                 continue
             if role not in ("tool", "function"):
                 continue
@@ -371,7 +460,7 @@ class Journal:
             if not isinstance(call_id, str) or not call_id or len(call_id) > 256:
                 raise BridgeError("TOOL_RECEIPT_MISSING_ID", "Tool result lacks a valid tool_call_id", 409)
             if call_id in observed:
-                recovered += self.restore_intent_from_history(call_id, observed[call_id], conversation_id, fingerprints.get(call_id))
+                recovered += self.restore_intent_from_history(call_id, observed[call_id], conversation_id, fingerprints.get(call_id), execution_scope, pair_result=True)
             operation = self.operation(call_id)
             name = observed.get(call_id) or (operation["name"] if operation else "(unmatched)")
             result_kind = classify_result({**message, "name": name}) if classify_result else "unknown"
@@ -411,7 +500,7 @@ class Journal:
         for field in fields:
             v = metrics.get(field)
             nums.append(min(v, 2_000_000_000) if type(v) is int and v >= 0 else None)
-        with self.lock, self.db:
+        with self.transaction():
             self.db.execute(
                 "INSERT INTO upstream_failures(request_id,error_code,upstream_event,"
                 "upstream_status,sse_event_count,sse_partial_text_chars,sse_body_bytes,"
@@ -436,7 +525,7 @@ class Journal:
 
     def diagnostic(self, request_id, phase, error_code=None, **fields):
         fields = safe_fields(fields)
-        with self.lock, self.db:
+        with self.transaction():
             keys = ["request_id", "phase", "error_code", *fields]
             self.db.execute("INSERT INTO diagnostics(" + ",".join(keys) + ") VALUES(" + ",".join("?" for _ in keys) + ")",
                             (request_id, phase, error_code, *fields.values()))

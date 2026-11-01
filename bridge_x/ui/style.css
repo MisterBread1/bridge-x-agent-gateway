@@ -1,0 +1,111 @@
+
+#bridge-x-app{--w-bg:light-dark(#fafaf9,#171717);--w-alt:light-dark(#f1f1ef,#202020);--w-text:light-dark(#20201f,#e6e6e3);--w-muted:light-dark(#71716c,#92928d);--w-line:light-dark(#ddddda,#343432);--w-selected:light-dark(#eaeae7,#2a2a28);--w-amber:light-dark(#8d5d16,#d5ac64);--w-green:light-dark(#47705e,#8bab95);--w-button:light-dark(#242423,#deded9);--w-button-text:light-dark(#fafaf9,#20201f);--w-row-pad:13px;font-family:"Segoe UI",system-ui,sans-serif;font-size:14px;line-height:1.5;color:var(--w-text);background:transparent;width:100%}
+#bridge-x-app *{box-sizing:border-box}
+#bridge-x-app [hidden]{display:none!important}
+#bridge-x-app p,#bridge-x-app h2,#bridge-x-app h3{margin:0}
+#bridge-x-app button,#bridge-x-app input{font:inherit}
+#bridge-x-app button{color:inherit}
+#bridge-x-app button:focus-visible,#bridge-x-app input:focus-visible{outline:2px solid var(--w-text);outline-offset:3px}
+#bridge-x-app button:disabled{opacity:.35}
+#bridge-x-app .wb-preview{font-size:12px;color:var(--w-muted);margin-bottom:12px;max-width:calc(100% - 90px)}
+#bridge-x-app .wb-app{background:var(--w-bg);border:1px solid var(--w-line);border-radius:6px;overflow:hidden}
+#bridge-x-app .wb-header{height:66px;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:0 26px}
+#bridge-x-app .wb-brand{font-size:21px;letter-spacing:-.7px;font-weight:500}
+#bridge-x-app .wb-connection{display:flex;align-items:center;gap:7px;color:var(--w-muted);font-size:12px}
+#bridge-x-app .wb-connection>span{width:6px;height:6px;border-radius:50%;background:var(--w-green)}
+#bridge-x-app .wb-tabs{display:flex;gap:25px;padding:0 26px;border-bottom:1px solid var(--w-line)}
+#bridge-x-app .wb-tab{padding:12px 0 11px;background:none;border:0;border-bottom:2px solid transparent;font-size:13px;color:var(--w-muted)}
+#bridge-x-app .wb-tab.wb-selected{border-bottom-color:var(--w-text);color:var(--w-text)}
+#bridge-x-app .wb-session-head{padding:26px;display:flex;align-items:center;justify-content:space-between;gap:20px}
+#bridge-x-app h2{font-size:22px;font-weight:500;letter-spacing:-.4px;line-height:1.4}
+#bridge-x-app .wb-session-head p,#bridge-x-app .wb-page-heading p{font-size:13px;color:var(--w-muted);margin-top:4px}
+#bridge-x-app .wb-attention{font-size:12px;display:flex;align-items:center;gap:7px;color:var(--w-amber);white-space:nowrap}
+#bridge-x-app .wb-attention svg{width:14px;height:14px}
+#bridge-x-app .wb-workspace{display:grid;grid-template-columns:minmax(0,1fr) 310px;border-top:1px solid var(--w-line);min-height:380px}
+#bridge-x-app .wb-history{min-width:0;display:flex;flex-direction:column}
+#bridge-x-app .wb-history-head{display:flex;justify-content:space-between;gap:16px;padding:16px 20px 13px;font-size:12px;color:var(--w-muted)}
+#bridge-x-app .wb-event-list{padding:0 8px}
+#bridge-x-app .wb-event{display:grid;grid-template-columns:55px 15px 44px minmax(0,1fr) 100px;align-items:center;gap:10px;width:100%;padding:var(--w-row-pad) 12px;border:0;border-radius:3px;background:transparent;text-align:left;font-size:12px}
+#bridge-x-app .wb-event:hover{background:var(--w-alt)}
+#bridge-x-app .wb-event.wb-event-selected{background:var(--w-selected)}
+#bridge-x-app .wb-event time{font-size:11px;color:var(--w-muted);font-variant-numeric:tabular-nums;font-family:Consolas,monospace;letter-spacing:-.3px}
+#bridge-x-app .wb-event svg{width:13px;height:13px;color:var(--w-muted)}
+#bridge-x-app .wb-tool{font-family:Consolas,"SFMono-Regular",monospace;font-size:11px}
+#bridge-x-app .wb-path{color:var(--w-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+#bridge-x-app .wb-result{text-align:right;font-size:11px;color:var(--w-muted);white-space:nowrap}
+#bridge-x-app .wb-uncertain{color:var(--w-amber)!important}
+#bridge-x-app .wb-history-end{display:flex;align-items:center;gap:9px;font-size:12px;color:var(--w-muted);padding:18px 20px}
+#bridge-x-app .wb-end-mark{width:12px;height:1px;background:var(--w-line);flex-shrink:0}
+#bridge-x-app .wb-local-note{margin-top:auto;padding:24px 20px 18px;font-size:11px;color:var(--w-muted)}
+#bridge-x-app .wb-inspector{border-left:1px solid var(--w-line);padding:20px 22px;min-width:0}
+#bridge-x-app .wb-inspector-caption{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;color:var(--w-muted);font-variant-numeric:tabular-nums;margin-bottom:15px}
+#bridge-x-app h3{font-size:17px;line-height:1.45;font-weight:500;letter-spacing:-.2px}
+#bridge-x-app .wb-code{font:12px/1.7 Consolas,"SFMono-Regular",monospace;margin:11px 0 20px;padding:10px 12px;background:var(--w-alt);white-space:pre-wrap;overflow-wrap:anywhere;border-radius:2px}
+#bridge-x-app .wb-facts{margin:0;display:grid;gap:10px;font-size:12px}
+#bridge-x-app .wb-facts>div{display:flex;justify-content:space-between;gap:15px}
+#bridge-x-app dt{color:var(--w-muted)}
+#bridge-x-app dd{margin:0;text-align:right}
+#bridge-x-app .wb-resolution{border-top:1px solid var(--w-line);margin-top:22px;padding-top:18px}
+#bridge-x-app .wb-resolution p{font-size:12px;color:var(--w-muted);line-height:1.6;margin-bottom:14px}
+#bridge-x-app .wb-button{display:inline-flex;align-items:center;justify-content:center;gap:9px;border:1px solid var(--w-line);background:var(--w-bg);padding:8px 11px;border-radius:4px;font-size:12px;min-height:34px}
+#bridge-x-app .wb-button svg{width:13px;height:13px}
+#bridge-x-app .wb-primary{background:var(--w-button);color:var(--w-button-text);border-color:var(--w-button)}
+#bridge-x-app .wb-footer{display:flex;justify-content:space-between;align-items:center;gap:8px 15px;flex-wrap:wrap;padding:10px 20px;border-top:1px solid var(--w-line);color:var(--w-muted);font-size:11px}
+#bridge-x-app .wb-footer>span:first-child{display:flex;align-items:center;gap:7px;font-family:Consolas,monospace}
+#bridge-x-app .wb-footer-dot{width:5px;height:5px;border-radius:50%;background:var(--w-muted)}
+#bridge-x-app .wb-back{display:inline-flex;align-items:center;gap:7px;background:transparent;border:0;padding:0;margin-bottom:24px;font-size:12px;color:var(--w-muted)}
+#bridge-x-app .wb-back svg{width:13px;height:13px}
+#bridge-x-app .wb-step-count{font-size:11px;color:var(--w-muted);margin-bottom:7px;font-variant-numeric:tabular-nums}
+#bridge-x-app .wb-instructions{padding-left:17px;margin:17px 0 23px;display:grid;gap:10px;font-size:13px}
+#bridge-x-app .wb-checkbox{display:flex;align-items:flex-start;gap:8px;font-size:12px;margin:18px 0 21px}
+#bridge-x-app .wb-checkbox input{width:14px;height:14px;flex-shrink:0;margin:3px 0 0;accent-color:var(--w-text)}
+#bridge-x-app .wb-preview-foot{font-size:11px;color:var(--w-muted);margin-top:25px;line-height:1.6}
+#bridge-x-app .wb-recovery-copy{font-size:13px;margin:16px 0 14px;line-height:1.7}
+#bridge-x-app .wb-quiet{font-size:12px;color:var(--w-muted);line-height:1.6}
+#bridge-x-app [data-recovery-step="2"] .wb-button{margin-top:22px}
+#bridge-x-app .wb-settings,#bridge-x-app .wb-diagnostics{padding:26px;min-height:475px}
+#bridge-x-app .wb-settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:60px;max-width:760px;margin-top:30px}
+#bridge-x-app .wb-settings-grid h3{font-size:14px;margin-bottom:20px}
+#bridge-x-app .wb-field{display:grid;gap:7px;font-size:12px;color:var(--w-muted);margin-bottom:18px}
+#bridge-x-app .wb-field input{width:100%;background:var(--w-bg);color:var(--w-text);border:1px solid var(--w-line);border-radius:3px;padding:9px 11px;font-size:13px;min-width:0}
+#bridge-x-app .wb-setting-line{display:flex;justify-content:space-between;gap:16px;font-size:12px;margin:20px 0}
+#bridge-x-app .wb-setting-line>span:first-child{color:var(--w-muted)}
+#bridge-x-app .wb-setup-facts{margin:0;display:grid;gap:18px;font-size:12px}
+#bridge-x-app .wb-setup-facts dt{margin-bottom:5px}
+#bridge-x-app .wb-setup-facts dd{text-align:left;overflow-wrap:anywhere}
+#bridge-x-app .wb-log{margin:28px 0;font-size:12px}
+#bridge-x-app .wb-log>div{display:grid;grid-template-columns:80px minmax(0,1fr) minmax(100px,220px);gap:15px;padding:13px 0;border-bottom:1px solid var(--w-line)}
+#bridge-x-app .wb-log time{color:var(--w-muted);font-variant-numeric:tabular-nums}
+#bridge-x-app .wb-log code{font-size:11px;overflow-wrap:anywhere;color:var(--w-muted)}
+#bridge-x-app .wb-report-note{font-size:12px;color:var(--w-muted);max-width:470px;margin-top:16px;line-height:1.7}
+@media(max-width:850px){#bridge-x-app .wb-workspace{grid-template-columns:minmax(0,1fr) 275px}#bridge-x-app .wb-event{grid-template-columns:15px 40px minmax(0,1fr) 94px;gap:8px}#bridge-x-app .wb-event time{display:none}#bridge-x-app .wb-inspector{padding:20px 18px}#bridge-x-app .wb-session-head{padding:23px 20px}#bridge-x-app .wb-attention{font-size:11px}}
+@media(max-width:650px){#bridge-x-app .wb-workspace{grid-template-columns:1fr}#bridge-x-app .wb-inspector{border-left:0;border-top:1px solid var(--w-line);padding:23px 20px}#bridge-x-app .wb-history{min-height:305px}#bridge-x-app .wb-local-note{display:none}#bridge-x-app .wb-session-head{align-items:flex-start;flex-direction:column;gap:14px}#bridge-x-app .wb-history-end{padding-bottom:22px}#bridge-x-app .wb-settings-grid{grid-template-columns:1fr;gap:30px}#bridge-x-app .wb-header{padding:0 20px}#bridge-x-app .wb-tabs{padding:0 20px;gap:22px}#bridge-x-app .wb-settings,#bridge-x-app .wb-diagnostics{padding:23px 20px}#bridge-x-app .wb-log>div{grid-template-columns:65px minmax(0,1fr)}#bridge-x-app .wb-log code{grid-column:2}#bridge-x-app .wb-footer{font-size:11px;padding:10px 14px}#bridge-x-app .wb-connection{font-size:11px}#bridge-x-app .wb-inspector-caption{max-width:360px}#bridge-x-app .wb-facts{max-width:360px}}
+@media(pointer:coarse){#bridge-x-app .wb-button,#bridge-x-app .wb-back{min-height:44px}#bridge-x-app .wb-tab{min-height:44px}#bridge-x-app .wb-event{min-height:48px}#bridge-x-app .wb-checkbox{padding:10px 0}#bridge-x-app input{font-size:16px}}
+
+:root{color-scheme:light dark}
+body{margin:0;padding:22px;background:light-dark(#eeeeec,#101010)}
+#bridge-x-app{max-width:1100px;margin:0 auto}
+#bridge-x-app [hidden]{display:none!important}
+#bridge-x-app .login{max-width:420px;margin:8vh auto;padding:26px;background:var(--w-bg);border:1px solid var(--w-line);border-radius:5px}
+#bridge-x-app .login h1{font-size:25px;font-weight:500;margin:0 0 7px}
+#bridge-x-app .login>p{margin:8px 0 20px;font-size:13px;color:var(--w-muted)}
+#bridge-x-app .login label{display:grid;gap:8px;font-size:13px}
+#bridge-x-app .login input{min-width:0;background:var(--w-bg);color:var(--w-text);border:1px solid var(--w-line);border-radius:3px;padding:10px}
+#bridge-x-app .login .wb-button{margin:16px 0}
+#bridge-x-app .key-file{margin:8px 0 16px}
+#bridge-x-app .key-file input{font-size:12px}
+#bridge-x-app .logout{margin-left:auto}
+#bridge-x-app .text-button{font:inherit;font-size:12px;color:var(--w-muted);background:transparent;border:0;padding:0}
+#bridge-x-app .more{margin:18px auto}
+#bridge-x-app .empty{padding:25px 20px;font-size:13px;color:var(--w-muted)}
+#bridge-x-app .wb-event{grid-template-columns:55px 15px 55px minmax(0,1fr) 150px}
+#bridge-x-app .wb-event time{font-size:11px}
+#bridge-x-app #detail-id{font-size:11px}
+#bridge-x-app .wb-settings-grid{gap:45px}
+#bridge-x-app #config-form>.wb-button{margin:12px 8px 0 0}
+#bridge-x-app #config-result,#bridge-x-app #recovery-error,#bridge-x-app #login-error{font-size:12px;color:var(--w-amber);margin-top:14px;overflow-wrap:anywhere}
+#bridge-x-app #recovery .wb-quiet{margin-top:14px}
+#bridge-x-app #message{overflow-wrap:anywhere}
+#bridge-x-app #events{max-width:100%;overflow-wrap:anywhere}
+@media(max-width:850px){#bridge-x-app .wb-event{grid-template-columns:15px 45px minmax(0,1fr) 125px}}
+@media(max-width:650px){body{padding:10px}#bridge-x-app .wb-event{grid-template-columns:15px 45px minmax(0,1fr) 120px}#bridge-x-app .wb-history{min-height:260px}#bridge-x-app .wb-event .wb-result{white-space:normal;font-size:11px}#bridge-x-app .wb-tabs{gap:16px}#bridge-x-app .wb-tab{font-size:12px}#bridge-x-app .wb-log>div{grid-template-columns:65px minmax(0,1fr)}#bridge-x-app .login{padding:20px}}

@@ -10,6 +10,8 @@ STATES = {"awaiting_tool_result", "awaiting_agent_decision", "model_stopped_unve
 EVENTS = {"request_received", "provider_generation_started", "native_tool_proposed", "tool_dispatched",
           "tool_receipt_received", "tool_outcome_classified", "history_compacted", "provider_finish_received",
           "completion_delivered", "recovery_required", "upstream_failure", "client_cancelled"}
+EVENTS |= {"input_rejected", "failed", "rate_limit_retry_wait", "native_batch_serialized",
+           "tool_history_recovered", "tool_receipt_unmatched", "context_recovery_before_output"}
 ERROR_CODES = {"EXECUTION_UNKNOWN", "RECEIPT_UNVERIFIED", "UPSTREAM_HISTORY_ECHO", "UPSTREAM_DEADLINE",
                "UPSTREAM_RATE_LIMIT", "UPSTREAM_QUOTA_EXHAUSTED", "UPSTREAM_CONTEXT_LIMIT", "UPSTREAM_OUTPUT_LIMIT",
                "UPSTREAM_CONTENT_FILTER", "UPSTREAM_INCOMPLETE", "UPSTREAM_UNRECOGNIZED_FINISH", "UPSTREAM_FINISH_ERROR",
@@ -20,7 +22,8 @@ ERROR_CODES = {"EXECUTION_UNKNOWN", "RECEIPT_UNVERIFIED", "UPSTREAM_HISTORY_ECHO
                "MOLAB_RUNTIME_GONE", "MOLAB_ACCESS_DENIED", "MOLAB_HTTP_ERROR", "MOLAB_TRANSPORT_ERROR",
                "MOLAB_RATE_LIMIT", "MOLAB_NATIVE_MODE_REQUIRED", "MOLAB_NATIVE_MODE_UNKNOWN", "MOLAB_NATIVE_TOOL_EXPECTED",
                "MOLAB_INCOMPLETE_STREAM", "MOLAB_COOLDOWN_ACTIVE", "MOLAB_QUEUE_TIMEOUT", "TOOL_CALL_ID_CONFLICT",
-               "CROSS_CONVERSATION_RECEIPT", "TOOL_RECEIPT_MISSING_ID", "TOOL_RECEIPT_CONFLICT"}
+               "CROSS_CONVERSATION_RECEIPT", "TOOL_RECEIPT_MISSING_ID", "TOOL_RECEIPT_CONFLICT",
+               "TOOL_SCHEMA_MISMATCH", "JOURNAL_BUSY", "JOURNAL_UNAVAILABLE", "JOURNAL_NEWER_SCHEMA"}
 
 
 def tool_type(name):

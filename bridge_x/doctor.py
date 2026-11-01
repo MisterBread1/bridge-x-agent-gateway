@@ -16,7 +16,10 @@ def inspect(settings, port=8787, network=False):
     def add(code, status, recommendation):
         checks.append({"code": code, "status": status, "recommendation": recommendation})
     add("PYTHON", "PASS" if sys.version_info >= (3, 11) else "ERROR", "Use Python 3.11 or newer.")
+    add("SQLITE_RUNTIME", "PASS", "SQLite " + sqlite3.sqlite_version + "; Bridge X uses rollback journaling on runtimes affected by the upstream WAL reset bug. Upgrade Python for a corrected SQLite runtime.")
     requirements = Path(__file__).resolve().parents[1] / "requirements.txt"
+    if not requirements.is_file():
+        requirements = Path(__file__).parent / "runtime-requirements.txt"
     try:
         missing = []
         for line in requirements.read_text(encoding="utf-8").splitlines():
@@ -62,7 +65,10 @@ def inspect(settings, port=8787, network=False):
     if settings.journal_path == ":memory:":
         add("JOURNAL", "WARNING", "Use a persistent BRIDGEX_JOURNAL_PATH to retain recovery state after restart.")
     elif not path.exists():
-        add("JOURNAL", "PASS" if path.parent.is_dir() and os.access(path.parent, os.W_OK) else "ERROR", "Journal does not exist. Startup creates it in the configured writable directory; doctor creates nothing.")
+        parent = path.resolve().parent
+        while not parent.exists() and parent != parent.parent:
+            parent = parent.parent
+        add("JOURNAL", "PASS" if parent.is_dir() and os.access(parent, os.W_OK) else "ERROR", "Journal does not exist. Startup creates its configured directory; doctor creates nothing.")
     else:
         try:
             db = sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True, timeout=1)

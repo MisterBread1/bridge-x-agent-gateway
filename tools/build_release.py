@@ -12,10 +12,11 @@ def release_members(root):
     root = Path(root).resolve()
     names = ['README.md', 'CONTRIBUTING.md', 'CHANGELOG.md', 'RELEASE_NOTES.md',
              'SECURITY.md', '.gitignore', 'requirements.txt', 'requirements-dev.txt',
-             'pytest.ini', 'LOCAL_HTTP_ACCEPTANCE.py', 'LIVE_CHECK.py', 'start.bat',
-             'examples/.molab_local.example.json', 'tools/requirements-media.txt',
+             'pytest.ini', 'LOCAL_HTTP_ACCEPTANCE.py', 'LIVE_CHECK.py', 'start.bat', 'start-ui.bat',
+             'examples/.molab_local.example.json', 'tools/requirements-media.txt', 'pyproject.toml',
+             'bridge_x/runtime-requirements.txt',
              'docs/assets/bridge-x-demo.gif', 'docs/assets/bridge-x-demo-ledger.gif']
-    for directory, suffixes in [('bridge_x', ('.py',)), ('bridge_x_test_runner', ('.py',)),
+    for directory, suffixes in [('bridge_x', ('.py', '.html', '.js', '.css')), ('bridge_x_test_runner', ('.py',)),
                                 ('tests', ('.py',)), ('tools', ('.py',)),
                                 ('docs', ('.md',)), ('.github', ('.md', '.yml', '.yaml'))]:
         names.extend(p.relative_to(root).as_posix() for p in (root / directory).rglob('*')

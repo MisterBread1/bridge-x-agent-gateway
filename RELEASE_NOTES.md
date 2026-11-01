@@ -1,75 +1,14 @@
-# Bridge X 12.13.0 — candidate notes (not published)
+# Bridge X 12.13.0 — Stable
 
-This candidate repairs a reproduced native-history provenance/echo defect and adds offline diagnostics. It does not establish the cause of the original live model early final. The existing 12.12.3 stable release/tag/assets are preserved; no new release or merge is authorized by the investigation gate until that evidence gap is resolved.
+A local workbench, long-session repairs and durable client-tool recovery for the existing Molab/ZCode workflow. Existing v12.12.3 and beta assets remain unchanged.
 
-- Retain structured native historical call/results, typed receipt fields and original user goals under bounded context.
-- Distinguish empty successful shell output, failure, cancellation, timeout, unknown execution and duplicate receipts; guard matching uncertain mutation replays across restart.
-- Add `python -m bridge_x doctor`, optional local health probing, new-file sanitized reports and an authenticated report endpoint.
-- Add safe lifecycle events and additive `x_bridge_x` metadata. Ordinary text is delivered once without an invented continuation or task-success claim.
-- Migrate the existing SQLite journal from schema 3 to 4; no second state store or dependency change.
-- Verify eight-turn JSON/SSE tool workflows using real temporary files, fixed Python checks and every-turn journal reopen, plus cancellation, legacy regressions and clean ZIP installation.
+- **Workbench:** `start-ui.bat` or `python -m bridge_x --ui`. Neutral compact layout, real operation history and inspector, explicit outcome checks, Molab connection setup, safe diagnostics. No mock session rows or client-tool executor.
+- **Node REPL:** fill only the missing display title of the known Node JavaScript tool, then validate the complete client schema. Preserve supplied code and titles; never invent missing executable arguments.
+- **Long sessions:** separate the 16 MB local input bound from the 1.5 MB upstream payload bound; compact large recent completed outputs and complete exchanges, preserve instructions and pending input, include schema overhead. One smaller retry follows an explicit pre-output context rejection. No retry follows partial output, pending native input or an uncertain failure.
+- **Receipts:** reject contradictory confirmed outcomes across requests; restore pending history after journal loss; keep shell success without exit code unknown; accept actual later shell outcomes after cancellation/timeout. Explicit matching digest checks plus confirmation that execution stopped resolve uncertain consequences without inventing an exit code.
+- **Storage:** one serialized journal worker keeps SQLite waits off the event loop. Whole-history transactions avoid repeated writes for known duplicate receipts. Schema 5 preserves existing state and rejects newer unknown schemas. Indexed event lookups and safe SQLite journaling improve sustained use.
+- **Installation:** stable user data directory with explicit legacy discovery, one owner per CLI journal, personal GUI key and consistent backup command. A package can be installed with `python -m pip install .`; `bridge-x` becomes available in that environment.
 
-Compatibility risks: more retained native argument bytes within the existing context bound; closed-schema clients must allow the response extension; shell success without exit code becomes unknown; uncertain repeated mutations are blocked conservatively. [Detailed investigation](docs/AGENT_CONTINUITY.md) and [Doctor guide](docs/DOCTOR.md) explain evidence, recovery and limits.
+The release workflow verifies source, a newly extracted ZIP, and the installed package with GUI assets before publication. Complete ZIP and SHA256SUMS are attached. [Upgrade and workbench guide](docs/WORKBENCH.md), [audit matrix](docs/REVIEW_FIXES.md), [investigation](docs/AGENT_CONTINUITY.md).
 
-The following notes are historical and remain attributed to their original release.
-
----
-
-# Bridge X v12.12.3 — First Stable Release
-
-## Overview
-
-Bridge X is a local OpenAI-compatible AI agent gateway. It translates provider events, validates tool proposals against client schemas, and coordinates execution receipts in SQLite. Tools run in the client, not in the gateway.
-
-This first stable release covers the verified local gateway workflow on Windows/Python 3.13. It does not certify current live-provider availability, every installed client, every operating system, or production workloads of arbitrary duration. The previous beta release is retained unchanged.
-
-## Highlights
-
-- Streaming and non-streaming Chat Completions with authenticated local endpoints.
-- Native frontend tool inputs validated before client delivery.
-- Sequential client workflows and separate foreground/background execution scopes.
-- Durable receipts, duplicate-dispatch protection, and SQLite restart recovery.
-- Bounded pre-output rate recovery, truthful terminal SSE errors, and sanitized diagnostics.
-- Complete English documentation, structured issue forms, and two clearly labeled architecture GIFs.
-
-## Native tool calling
-
-Native start/delta/available events must form complete, consistent arguments and pass the declared JSON Schema. The client applies its permissions, executes the tool, and returns the actual result with the gateway's local call ID. A proposal or dispatch is never evidence of execution. Compatibility parsers remain available without becoming the default native path.
-
-## SSE support
-
-Strict incremental UTF-8 framing, bounded input, heartbeat comments, cancellation, and late-error handling are checked. An SSE error after HTTP 200 does not receive a fabricated successful DONE marker. Executable arguments stay buffered until safe terminal and schema validation.
-
-## SQLite state recovery
-
-The journal records operation transitions, receipt provenance, request fingerprints, scopes, and cooldown metadata. Original transcript call/result pairs are reconciled before context compaction. Unknown effects are not silently rerun. Verification compares digests supplied by the authenticated client; it does not independently inspect the client's filesystem.
-
-## Installation
-
-Extract `bridge-x-12.12.3-complete.zip`, open its project directory, then run in PowerShell:
-
-```powershell
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe -m bridge_x --provider fake --port 18787
-```
-
-The fake provider is an offline simulator. Follow the README to create your own local runtime configuration and unique gateway key before using a real upstream. `start.bat` remains the optional Windows shortcut.
-
-## Verification results
-
-Publication is gated on a full source regression run and a **new Python environment from the extracted final ZIP**: dependency install, pip check, compileall, full pytest, HTTP/SSE smoke, native CSS/file/Python acceptance, and syntax-only fake startup. Schema, SQLite recovery, explicit 429 handling, receipt ownership, and stream failure cases are included in pytest. Final ZIP/file SHA-256 and offline secret scanning are checked. Exact observations and limitations are in [stable verification](docs/STABLE_RELEASE.md) and the matching GitHub Actions run; historical beta counts are not used as new stable results.
-
-The local clean extracted candidate passed **478 tests**, with one Windows symlink-permission skip and one existing Starlette/httpx warning; all seven clean-environment gate commands succeeded. Hosted PR/main and final-ZIP checks run independently before publication. The independent CSS scenario uses scripted upstream events with genuine temporary client file operations and Python execution. No live Molab or installed-ZCode run is claimed for this release acceptance.
-
-## Known limitations
-
-Beta history is preserved, while stable scope is deliberately limited to tested functions. Provider quotas, runtime expiration, interface changes, process-local pacing, client permissions, and external connectivity remain constraints. Windows symlink permissions may cause the existing test to skip locally; the Starlette/httpx test-client warning remains visible. Other environments and sustained production loads are not universally certified.
-
-## Download
-
-The stable GitHub Release attaches `bridge-x-12.12.3-complete.zip` and `SHA256SUMS.txt`. The archive contains an independent per-file checksum manifest, source, tests, documentation, both GIFs, community configuration, and placeholder-only examples. It excludes credentials, local databases, logs, caches, environments, and older nested ZIPs.
-
-## Documentation
-
-Start with [README](README.md), then [configuration](docs/CONFIGURATION.md), [architecture](docs/ARCHITECTURE.md), [file guide](docs/FILE_GUIDE.md), [development](docs/DEVELOPMENT.md), [testing](docs/TESTING.md), and [community administration](docs/COMMUNITY_SETUP.md).
+The model's original semantic reason for ending a task remains unproved. These repairs establish tested local protocol behavior; they do not certify every installed ZCode build or live Molab availability. Irreducibly oversized active instructions, tool registries or pending executable arguments still produce an actionable typed error. The gateway cannot safely discard those inputs or control ZCode's continuation scheduler.

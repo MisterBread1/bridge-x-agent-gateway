@@ -152,7 +152,7 @@ def test_schema_three_migration_retains_pending_guards_and_existing_events(tmp_p
         db.execute("PRAGMA user_version=3")
     journal = Journal(path)
     try:
-        assert journal.db.execute("PRAGMA user_version").fetchone()[0] == 4
+        assert journal.db.execute("PRAGMA user_version").fetchone()[0] == 5
         assert journal.operation("old")["events"] == ["PROPOSED", "VALIDATED", "DISPATCHED"]
         with pytest.raises(BridgeError):
             journal.ensure_new_turn("old-key", "task")

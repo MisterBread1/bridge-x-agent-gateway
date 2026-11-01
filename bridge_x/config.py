@@ -15,7 +15,9 @@ class Settings:
     molab_config_path: str = str(Path(__file__).resolve().parent.parent / ".molab_local.json")
     max_molab_response_bytes: int = 4_000_000
     journal_path: str = "bridge_x_state.sqlite3"
-    max_request_bytes: int = 1_500_000
+    # Ingress history may be much larger than the compacted provider payload.
+    max_request_bytes: int = 16_000_000
+    max_upstream_request_bytes: int = 1_500_000
     max_output_chars: int = 1_000_000
     # Advisory size target for a single ZCode tool action, NOT a Molab API token limit.
     max_action_chars: int = 2_200
@@ -48,7 +50,7 @@ class Settings:
             value = getattr(self, name)
             if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:
                 raise ValueError(name + " must be a positive finite number")
-        for name in ("max_molab_response_bytes", "max_request_bytes", "max_output_chars",
+        for name in ("max_molab_response_bytes", "max_request_bytes", "max_upstream_request_bytes", "max_output_chars",
                      "max_tool_args_bytes", "max_message_chars", "max_context_chars"):
             if type(getattr(self, name)) is not int or getattr(self, name) <= 0:
                 raise ValueError(name + " must be a positive integer")
@@ -61,14 +63,15 @@ class Settings:
 
     @classmethod
     def from_env(cls) -> "Settings":
+        from .paths import config_path, journal_path
         vals = {
             "provider": os.getenv("BRIDGEX_PROVIDER", "molab").strip().lower(),
-            "molab_config_path": os.getenv("BRIDGEX_MOLAB_CONFIG", str(Path(__file__).resolve().parent.parent / ".molab_local.json")),
+            "molab_config_path": os.getenv("BRIDGEX_MOLAB_CONFIG", str(config_path())),
             "generic_url": os.getenv("BRIDGEX_GENERIC_URL", ""),
             "generic_model": os.getenv("BRIDGEX_GENERIC_MODEL", ""),
             "generic_api_key": os.getenv("BRIDGEX_GENERIC_API_KEY", ""),
             "local_api_key": os.getenv("BRIDGEX_LOCAL_KEY", "molab-local"),
-            "journal_path": os.getenv("BRIDGEX_JOURNAL_PATH", "bridge_x_state.sqlite3"),
+            "journal_path": os.getenv("BRIDGEX_JOURNAL_PATH", str(journal_path())),
             "timeout_s": float(os.getenv("BRIDGEX_TIMEOUT_SECONDS", "600")),
             "max_action_chars": int(os.getenv("BRIDGEX_ACTION_CHARS", "2200")),
             "molab_tool_mode": os.getenv("BRIDGEX_MOLAB_TOOL_MODE", "native").strip().lower(),

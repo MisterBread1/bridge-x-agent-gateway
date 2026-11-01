@@ -137,6 +137,22 @@ def _normalize_text_frame_integers(arguments: dict[str, Any], schema: dict[str, 
     return fixed if fixed is not None else arguments
 
 
+def _normalize_display_title(name, arguments, schema):
+    """Supply only the known Node REPL display label, never executable input.
+
+    Some Molab responses omit this recently required UI metadata. Preserve
+    code and every operator-supplied value; the client's complete schema is
+    still authoritative, including constraints on the generated label.
+    """
+    if name not in {"mcp__node_repl__js", "node_repl__js"} or "title" in arguments:
+        return arguments
+    properties = schema.get("properties", {})
+    rule = properties.get("title", {}) if isinstance(properties, dict) else {}
+    if "title" not in schema.get("required", []) or not isinstance(rule, dict) or rule.get("type") != "string":
+        return arguments
+    return {**arguments, "title": "Run JavaScript"}
+
+
 def validate_specs(specs: list[dict[str, Any]], req: ChatRequest, max_args_bytes: int,
                     *, normalize_text_scalars: bool = False) -> list[ToolCall]:
     """Single validator shared by native, JSON, legacy and v2 tool intents."""
@@ -165,6 +181,7 @@ def validate_specs(specs: list[dict[str, Any]], req: ChatRequest, max_args_bytes
         if len(json.dumps(arguments, ensure_ascii=False).encode("utf-8")) > max_args_bytes:
             raise BridgeError("TOOL_ARGUMENTS_TOO_LARGE", "Tool arguments exceeded size limit", 422)
         schema, validator, schema_hash = registered[name]
+        arguments = _normalize_display_title(name, arguments, schema)
         if normalize_text_scalars:
             arguments = _normalize_text_frame_integers(arguments, schema)
         elif name == "Read":
@@ -184,6 +201,8 @@ def validate_specs(specs: list[dict[str, Any]], req: ChatRequest, max_args_bytes
             # Unresolvable local references or unsupported schema keywords must
             # not become a generic HTTP 500 or reveal provider/client contents.
             raise BridgeError("INVALID_TOOL_SCHEMA", "Tool schema could not be resolved safely", 400) from exc
+        if len(json.dumps(arguments, ensure_ascii=False).encode("utf-8")) > max_args_bytes:
+            raise BridgeError("TOOL_ARGUMENTS_TOO_LARGE", "Tool arguments exceeded size limit", 422)
         result.append(ToolCall("call_" + uuid.uuid4().hex, name, arguments, schema_hash,
                                conversation_id=req.conversation_id))
     return result

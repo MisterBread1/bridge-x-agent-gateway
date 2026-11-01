@@ -6,6 +6,9 @@ import json
 import time
 import uuid
 import re
+import anyio
+import sqlite3
+from pathlib import Path
 from fastapi import FastAPI, Header, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import ValidationError
@@ -18,11 +21,12 @@ from .execution_scope import resolve_execution_scope
 from .capabilities import capabilities_for
 from .receipts import classify_result as _is_success_tool_result
 from .journal import Journal
-from .providers import make_provider, TextDelta, NativeToolDelta, Finish, Failed, RateLimitWait
+from .providers import make_provider, TextDelta, NativeToolDelta, Finish, Failed, RateLimitWait, ContextRecovery
 from .sse import sse_data, sse_error
 from . import __version__
 from .json_utils import loads as strict_loads, valid_value
 from .observability import tool_type
+from .storage import JournalWorker, storage_error
 
 
 def _response_object(req, request_id, text, calls, reason, continuity=None):
@@ -43,20 +47,45 @@ def _sse_chunk(req, request_id, delta, reason=None, continuity=None):
 def create_app(settings: Settings | None = None, provider=None, journal: Journal | None = None):
     settings = settings or Settings.from_env()
     provider = provider or make_provider(settings)
-    journal = journal or Journal(settings.journal_path)
+    if journal is None:
+        try:
+            if settings.journal_path != ":memory:":
+                Path(settings.journal_path).parent.mkdir(parents=True, exist_ok=True)
+            journal = Journal(settings.journal_path)
+        except sqlite3.Error as error:
+            raise storage_error(error) from None
+    storage = JournalWorker(journal)
     if hasattr(provider, "set_rate_store"):
-        provider.set_rate_store(journal)
+        provider.set_rate_store(storage)
     coordinator = ToolCoordinator(journal, settings.max_context_chars)
     capabilities = capabilities_for(settings.provider)
 
     @asynccontextmanager
     async def lifespan(app):
-        yield
-        journal.close()
+        async def open_browser():
+            await asyncio.sleep(0.5)
+            import webbrowser
+            await asyncio.to_thread(webbrowser.open, app.state.open_ui_url)
+        browser = asyncio.create_task(open_browser()) if getattr(app.state, "open_ui_url", None) else None
+        try:
+            yield
+        finally:
+            if browser is not None:
+                browser.cancel()
+                await asyncio.gather(browser, return_exceptions=True)
+            await storage.close()
 
     app = FastAPI(title="Bridge X", version=__version__, lifespan=lifespan)
     app.state.settings = settings
     app.state.journal = journal
+    app.state.storage = storage
+    app.state.provider = provider
+    from .local_ui import install_ui
+    install_ui(app, settings, provider, storage)
+
+    @app.exception_handler(BridgeError)
+    async def bridge_error_handler(request, error):
+        return JSONResponse(error.public(), status_code=error.status, headers=error.headers())
 
     @app.get("/health")
     async def health():
@@ -64,9 +93,10 @@ def create_app(settings: Settings | None = None, provider=None, journal: Journal
 
     @app.get("/ready")
     async def ready():
-        verified = bool(getattr(provider, "live_verified", False))
+        connection = provider.connection_status() if hasattr(provider, "connection_status") else {"verified": bool(getattr(provider, "live_verified", False))}
+        verified = connection["verified"]
         return {"ready": settings.provider == "fake" or verified, "provider": settings.provider,
-                "molab_adapter_available": settings.provider == "molab", "live_connection_verified": verified, "execution_location": "ZCode client"}
+                "molab_adapter_available": settings.provider == "molab", "live_connection_verified": verified, "execution_location": "ZCode client", "connection": connection}
 
     @app.get("/v1/capabilities")
     async def provider_capabilities(authorization: str | None = Header(default=None)):
@@ -81,7 +111,7 @@ def create_app(settings: Settings | None = None, provider=None, journal: Journal
     async def operation_status(call_id: str, authorization: str | None = Header(default=None)):
         if not _auth(authorization, settings.local_api_key):
             return JSONResponse({"error": "unauthorized"}, status_code=401)
-        operation = journal.operation(call_id)
+        operation = await storage.call("operation", call_id)
         if operation is None:
             return JSONResponse({"error": {"code": "OPERATION_NOT_FOUND"}}, status_code=404)
         return operation
@@ -92,8 +122,8 @@ def create_app(settings: Settings | None = None, provider=None, journal: Journal
         if not _auth(authorization, settings.local_api_key):
             return JSONResponse({"error": "unauthorized"}, status_code=401)
         try:
-            return journal.verify(call_id, verification.conversation_id,
-                                  verification.expected_sha256, verification.observed_sha256)
+            return await storage.call("verify", call_id, verification.conversation_id,
+                                      verification.expected_sha256, verification.observed_sha256, verification.execution_stopped)
         except BridgeError as exc:
             return JSONResponse(exc.public(), status_code=exc.status)
 
@@ -101,8 +131,8 @@ def create_app(settings: Settings | None = None, provider=None, journal: Journal
     async def diagnostics(authorization: str | None = Header(default=None)):
         if not _auth(authorization, settings.local_api_key):
             return JSONResponse({"error": "unauthorized"}, status_code=401)
-        return {"version": __version__, "config": settings.description(), "recent": journal.latest(),
-                "recent_upstream_failures": journal.latest_upstream_failures(),
+        return {"version": __version__, "config": settings.description(), "recent": await storage.call("latest"),
+                "recent_upstream_failures": await storage.call("latest_upstream_failures"),
                 "rate_control": provider.rate_status() if hasattr(provider, "rate_status") else {"enabled": False}}
 
     @app.get("/v1/models")
@@ -116,7 +146,7 @@ def create_app(settings: Settings | None = None, provider=None, journal: Journal
     async def diagnostic_report(authorization: str | None = Header(default=None)):
         if not _auth(authorization, settings.local_api_key):
             return JSONResponse({"error": "unauthorized"}, status_code=401)
-        return {"version": __version__, "events": journal.safe_report(), "task_completion_verified": False}
+        return {"version": __version__, "events": await storage.call("safe_report"), "task_completion_verified": False}
 
     @app.post("/v1/chat/completions")
     async def completions(request: Request, authorization: str | None = Header(default=None),
@@ -134,8 +164,8 @@ def create_app(settings: Settings | None = None, provider=None, journal: Journal
                 return JSONResponse(BridgeError("REQUEST_TOO_LARGE", "Request exceeded input limit", 413).public(), status_code=413)
             chunks.append(data)
         request_id = "chatcmpl_" + uuid.uuid4().hex
-        journal.diagnostic(request_id, "request_received")
         try:
+            await storage.call("diagnostic", request_id, "request_received")
             raw = strict_loads(b"".join(chunks))
             if not valid_value(raw):
                 raise ValueError("Invalid JSON value or nesting depth")
@@ -156,7 +186,7 @@ def create_app(settings: Settings | None = None, provider=None, journal: Journal
             messages = [m.model_dump(exclude_none=True) for m in req.messages]
             execution_scope = resolve_execution_scope(messages, x_zcode_query_source)
             req._execution_scope = execution_scope
-            journal.record_client_request(request_id, x_request_id, req.conversation_id,
+            await storage.call("record_client_request", request_id, x_request_id, req.conversation_id,
                                           execution_scope, x_zcode_query_source, len(req.tools))
             # The adapter receives declared tool schemas separately. This guidance
             # adds no executable capabilities and never implies a tool was run.
@@ -173,31 +203,32 @@ def create_app(settings: Settings | None = None, provider=None, journal: Journal
             # The ZCode transcript is the primary history of assistant tool
             # proposals and subsequent client results. Reconcile it BEFORE
             # context compaction and independently of local journal lifetime.
-            turn = coordinator.prepare(req, messages, execution_scope, request_id)
+            turn = await storage.call(coordinator.prepare, req, messages, execution_scope, request_id)
             receipt_stats = turn.receipts
             if turn.context_budget["after_chars"] != turn.context_budget["before_chars"]:
-                journal.diagnostic(request_id, "history_compacted",
+                await storage.event(request_id, "history_compacted",
                     compacted_exchanges=turn.context_budget["archived_completed_exchanges"],
                     compacted_outputs=turn.context_budget["compacted_tool_outputs"])
             if receipt_stats["recovered"]:
-                journal.diagnostic(request_id, "tool_history_recovered", "RECEIPT_HISTORY_RECONCILED")
+                await storage.event(request_id, "tool_history_recovered", "RECEIPT_HISTORY_RECONCILED")
             if receipt_stats["unmatched"]:
-                journal.diagnostic(request_id, "tool_receipt_unmatched", "RECEIPT_UNVERIFIED")
+                await storage.event(request_id, "tool_receipt_unmatched", "RECEIPT_UNVERIFIED")
             messages = turn.messages
             if hasattr(provider, "preflight"):
                 provider.preflight()
         except BridgeError as exc:
-            journal.diagnostic(request_id, "input_rejected", exc.code)
-            journal.diagnostic(request_id, "recovery_required", exc.code, agent_state="recovery_required")
+            await storage.event(request_id, "input_rejected", exc.code)
+            await storage.event(request_id, "recovery_required", exc.code, agent_state="recovery_required")
             return JSONResponse(exc.public(), status_code=exc.status, headers=exc.headers())
         except (ValidationError, ValueError, UnicodeError, RecursionError):
             error = BridgeError("INVALID_REQUEST", "Invalid JSON or chat completion schema", 400)
-            journal.diagnostic(request_id, "input_rejected", error.code)
+            await storage.event(request_id, "input_rejected", error.code)
             return JSONResponse(error.public(), status_code=400)
 
         async def gather_or_stream(streaming):
             text_chunks = []
             native = {}
+            calls = None
             finish = None
             output_size = 0
             started = time.monotonic()
@@ -207,7 +238,7 @@ def create_app(settings: Settings | None = None, provider=None, journal: Journal
             can_stream_text = not req.tools or req.tool_choice == "none"
             next_event_task = None
             try:
-                journal.diagnostic(request_id, "provider_generation_started", agent_state="awaiting_agent_decision")
+                await storage.event(request_id, "provider_generation_started", agent_state="awaiting_agent_decision")
                 while True:
                     remaining = settings.timeout_s - (time.monotonic() - started)
                     if remaining <= 0:
@@ -228,12 +259,15 @@ def create_app(settings: Settings | None = None, provider=None, journal: Journal
                         next_event_task = None
                     if isinstance(event, RateLimitWait):
                         if event.diagnostics:
-                            journal.upstream_failure(request_id, event.code, event.diagnostics)
-                        journal.diagnostic(request_id, "rate_limit_retry_wait", event.code)
+                            await storage.call("upstream_failure", request_id, event.code, event.diagnostics)
+                        await storage.event(request_id, "rate_limit_retry_wait", event.code)
+                        continue
+                    if isinstance(event, ContextRecovery):
+                        await storage.event(request_id, "context_recovery_before_output", "UPSTREAM_CONTEXT_LIMIT")
                         continue
                     if isinstance(event, Failed):
                         if event.diagnostics:
-                            journal.upstream_failure(request_id, event.code, event.diagnostics)
+                            await storage.call("upstream_failure", request_id, event.code, event.diagnostics)
                         upstream_fail_status = (413 if event.code == "UPSTREAM_CONTEXT_LIMIT" else
                                                 429 if event.code in ("UPSTREAM_RATE_LIMIT", "UPSTREAM_QUOTA_EXHAUSTED") else 502)
                         raise BridgeError(event.code, event.message, upstream_fail_status,
@@ -263,7 +297,7 @@ def create_app(settings: Settings | None = None, provider=None, journal: Journal
                             raise BridgeError("OUTPUT_TOO_LARGE", "Upstream exceeded output size limit", 502)
                         entry = native.setdefault(event.index, {"id": "", "function": {"name": "", "arguments": ""}})
                         if event.name:
-                            journal.diagnostic(request_id, "native_tool_proposed", tool_type=tool_type(event.name))
+                            await storage.event(request_id, "native_tool_proposed", tool_type=tool_type(event.name))
                         if event.id:
                             entry["id"] += event.id
                         if event.name:
@@ -275,7 +309,7 @@ def create_app(settings: Settings | None = None, provider=None, journal: Journal
                         if finish is not None:
                             raise BridgeError("UPSTREAM_DUPLICATE_FINISH", "Upstream sent multiple finish events", 502)
                         finish = event.reason
-                        journal.diagnostic(request_id, "provider_finish_received", finish_reason=finish)
+                        await storage.event(request_id, "provider_finish_received", finish_reason=finish)
                         # Drain the provider to EOF: a later SSE error/abort
                         # must override a provisional terminal event.
                 if finish is None:
@@ -300,7 +334,7 @@ def create_app(settings: Settings | None = None, provider=None, journal: Journal
                         # its real receipt. Never queue stale later edits or
                         # make the client execute forbidden parallel calls.
                         proposed = proposed[:1]
-                        journal.diagnostic(request_id, "native_batch_serialized")
+                        await storage.event(request_id, "native_batch_serialized")
                     calls = validate_native(proposed, req, settings.max_tool_args_bytes)
                 elif req.tools and not (settings.provider == "molab" and settings.molab_tool_mode == "native"):
                     calls = parse_intent(text, req, settings.max_tool_args_bytes)
@@ -319,27 +353,26 @@ def create_app(settings: Settings | None = None, provider=None, journal: Journal
                 if (req.tool_choice == "required" or isinstance(req.tool_choice, dict)) and not calls:
                     raise BridgeError("TOOL_REQUIRED", "Tool choice required a tool call", 422)
                 if calls:
-                    coordinator.dispatch(turn, calls)
+                    await storage.call(coordinator.dispatch, turn, calls)
                     for call in calls:
-                        journal.diagnostic(request_id, "tool_dispatched", tool_type=tool_type(call.name))
-                status = journal.continuity(req.conversation_id, execution_scope)
-                status.update(agent_state=("awaiting_tool_result" if calls else "execution_unknown" if status["unknown_outcomes"] else "model_stopped_unverified"),
+                        await storage.event(request_id, "tool_dispatched", tool_type=tool_type(call.name))
+                status = await storage.call("continuity", req.conversation_id, execution_scope, tuple(set(turn.history_call_ids) | {c.id for c in (calls or [])}))
+                status.update(agent_state=("awaiting_tool_result" if calls or status["pending_operations"] else "execution_unknown" if status["unknown_outcomes"] else "model_stopped_unverified"),
                               task_completion_verified=False,
                               next_step="client_executes_tools" if calls else "client_decides_whether_to_continue")
                 yield ("complete", (text, calls, finish, status))
             except asyncio.CancelledError:
-                journal.diagnostic(request_id, "client_cancelled", agent_state="client_cancelled",
-                                   pending_operations=journal.continuity(req.conversation_id, execution_scope)["pending_operations"])
+                with anyio.move_on_after(0.5, shield=True):
+                    await storage.event(request_id, "client_cancelled", agent_state="client_cancelled")
                 raise
             except BridgeError as exc:
-                journal.diagnostic(request_id, "failed", exc.code)
-                journal.diagnostic(request_id, "upstream_failure", exc.code)
-                journal.diagnostic(request_id, "recovery_required", exc.code, agent_state="recovery_required",
-                                   pending_operations=journal.continuity(req.conversation_id, execution_scope)["pending_operations"])
+                await storage.event(request_id, "failed", exc.code)
+                await storage.event(request_id, "upstream_failure", exc.code)
+                await storage.event(request_id, "recovery_required", exc.code, agent_state="recovery_required")
                 yield ("error", exc)
             except Exception:
                 # Preserve privacy; the traceback is not returned to the client.
-                journal.diagnostic(request_id, "failed", "INTERNAL_ERROR")
+                await storage.event(request_id, "failed", "INTERNAL_ERROR")
                 yield ("error", BridgeError("INTERNAL_ERROR", "Internal gateway failure", 500))
             finally:
                 if next_event_task is not None:
@@ -361,7 +394,7 @@ def create_app(settings: Settings | None = None, provider=None, journal: Journal
             if result is None:
                 return JSONResponse(BridgeError("INTERNAL_ERROR", "No completion result", 500).public(), status_code=500)
             text, calls, finish, status = result
-            journal.diagnostic(request_id, "completion_delivered", agent_state=status["agent_state"],
+            await storage.event(request_id, "completion_delivered", agent_state=status["agent_state"],
                                pending_operations=status["pending_operations"], finish_reason="tool_calls" if calls else finish)
             return JSONResponse(_response_object(req, request_id, text, calls, finish, status))
 
@@ -386,7 +419,7 @@ def create_app(settings: Settings | None = None, provider=None, journal: Journal
                         # Tool mode waited for safe terminal status; now release text.
                         for start in range(0, len(text), 1024):
                             yield _sse_chunk(req, request_id, {"content": text[start:start+1024]})
-                    journal.diagnostic(request_id, "completion_delivered", agent_state=status["agent_state"],
+                    await storage.event(request_id, "completion_delivered", agent_state=status["agent_state"],
                                        pending_operations=status["pending_operations"], finish_reason="tool_calls" if calls else finish)
                     yield _sse_chunk(req, request_id, {}, "tool_calls" if calls else finish, status)
                     yield "data: [DONE]\n\n"

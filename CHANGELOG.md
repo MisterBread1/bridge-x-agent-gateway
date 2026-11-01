@@ -1,15 +1,17 @@
 # Changelog
 
-## 12.13.0 — candidate, not released
+## 12.13.0 — Stable
 
-- Preserve retained native tool input/output pairs at every age instead of converting older completed calls into assistant prose. Reject the reported completed-history echo as a protocol failure.
-- Keep typed receipt fields valid when compacting old output. Bash without a real exit code remains unknown, even with a generic success flag.
-- Persist argument digests and block repeated matching mutations with uncertain outcomes; allow genuine later receipts to resolve unknown text results. Migrate the same SQLite journal to version 4.
-- Add `python -m bridge_x doctor`, explicit local-only health probing and sanitized Issue reports.
-- Add allowlisted structured lifecycle events, authenticated `/diagnostics/report` and additive JSON/SSE `x_bridge_x` continuity status without claiming task completion.
-- Add an eight-turn real-temporary-file native fixture in both transport modes, receipt/restart/cancellation regressions and clean-ZIP checks on PRs.
+- Add an authenticated local operator workbench: real operations, uncertain-outcome checks, Molab setup, explicit runtime checks and sanitized reports. Start with `start-ui.bat` or `python -m bridge_x --ui`.
+- Fix missing required Node REPL `title` metadata without changing code or bypassing the declared schema.
+- Accept bounded client histories up to 16 MB before compaction, retain typed outcomes when shortening recent completed output, and account for tool-schema overhead. Explicit pre-output Molab context rejection permits one smaller attempt; partial output or tool input forbids it.
+- Preserve native historical call/result provenance and reject historical-call echoes. Reconcile pending assistant calls even after journal loss.
+- Fix contradictory cross-request receipts, unknown shell success, cancellation/timeout recovery, anonymous-session isolation, freshness after runtime failure, future-schema protection and event lookup indexes.
+- Serialize SQLite work off the event loop; return typed storage failures; reconcile duplicate receipts in one transaction without redundant updates. Fall back to rollback journaling on SQLite runtimes affected by the WAL reset bug.
+- Add stable per-user state paths, legacy discovery, a process-held journal lock, consistent non-overwriting backups, installable packaging and installed-GUI checks outside the source checkout.
+- Retain Doctor, safe lifecycle events and JSON/SSE continuity metadata. A model stop is not a claim of verified task completion.
 
-The original live model's semantic stop cause remains unconfirmed; this candidate is withheld from release. See [the investigation and release gate](docs/AGENT_CONTINUITY.md).
+[Audit fixes and validation scope](docs/REVIEW_FIXES.md). Existing stable/beta tags and assets are preserved.
 
 This is a reconstructed history from the existing project changelog, regression reports, and public-release acceptance notes. It is not a claim of newly rerun historical tests or a complete release-by-release Git history. Earlier private reports are summarized here without publishing their transcripts, runtime identifiers, or local filesystem paths.
 
