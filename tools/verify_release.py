@@ -82,6 +82,7 @@ assert files('bridge_x').joinpath('ui/index.html').is_file()
 with TestClient(create_app(Settings(journal_path=':memory:')), base_url='http://127.0.0.1') as client:
     assert client.get('/ui/').status_code == 200
     assert client.get('/ui/assets/app.js').status_code == 200
+    assert client.get('/ui/assets/locales.js').status_code == 200
     assert client.get('/ui/api/snapshot').status_code == 401
 """
         subprocess.run([str(python), '-I', '-c', probe], cwd=workspace, env=env, check=True, timeout=30)

@@ -4,12 +4,12 @@ Start `start-ui.bat` on Windows, or `python -m bridge_x --ui`. Add `--no-browser
 
 ## First connection
 
-1. Open the personal `local.key` file on the login screen, or explicitly run `python -m bridge_x key` and paste the key locally. Startup logs and page URLs contain no key. An explicit nondefault `BRIDGEX_LOCAL_KEY` takes precedence.
+1. On Windows, double-click `copy-key.bat` in the extracted project, then paste the key into the login screen. Alternatively select `local.key`, or explicitly run `python -m bridge_x key` in the same environment used for startup. Startup logs and page URLs contain no key. An explicit nondefault `BRIDGEX_LOCAL_KEY` takes precedence.
 2. Under **Connection**, enter the current Molab runtime chat URL, marimo session ID and optional server token. The whole new configuration is saved atomically to the configured private file. Existing values are never reflected into the browser. Saving does not send a provider request.
 3. **Check runtime** reads access and AI mode only. A separate confirmed action can switch code mode to manual. A successful mode check does not establish model generation success.
-4. Copy the displayed loopback Base URL and model `molab-glm` to ZCode, with the same personal local key. Client tools and permissions remain in ZCode.
+4. Use the copy buttons to transfer the loopback Base URL, model `molab-glm` and personal local key to ZCode. Client tools and permissions remain in ZCode.
 
-The key stays in browser memory, with no localStorage or cookie persistence. Reloading requires login again. UI APIs require the key, loopback Host and same-origin requests. Assets have a restrictive CSP, no external fonts/scripts and no telemetry.
+Choose ENG/RUS at the top of either the login screen or workbench. The preference is remembered across reloads; blocked browser storage does not prevent switching. Labels, statuses, errors and recovery messages change immediately without clearing the form or session. The key stays in browser memory, with no key in localStorage or cookies. Only the language preference is persisted; keys reach the clipboard solely after an explicit copy action. Reloading requires login again. UI APIs require the key, loopback Host and same-origin requests. Assets have a restrictive CSP, no external fonts/scripts and no telemetry.
 
 ## Session and recovery
 

@@ -2,6 +2,9 @@
 
 ## 12.13.1 — Stable
 
+- Add complete ENG/RUS workbench labels, statuses, recovery/error messages and remembered language, with no session/form reset on switching.
+- Simplify login and ZCode setup with copy-key.bat, concise steps, an expandable key-location guide and authenticated copy buttons. Only language preferences enter browser storage; clipboard access requires an explicit operator action.
+
 - Repair Windows startup with an existing Python environment missing pip: bootstrap through bundled ensurepip, preserve arguments/exit status and distinguish interpreter, environment, pip and dependency failures. No global Python changes or automatic environment deletion.
 - Include `.molab.example` in the ZIP root and as a separate release asset, covered by SHA256SUMS; document each field and creating the private `.molab_local.json` without overwriting it.
 - Add real offline cmd/venv regressions for missing pip, first startup, failed ensurepip and GUI argument/exit-code forwarding. Existing 12.13.0 assets remain unchanged.

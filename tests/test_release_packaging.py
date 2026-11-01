@@ -16,8 +16,8 @@ def test_complete_archive_has_stable_prefix_docs_and_valid_checksums(tmp_path):
     with ZipFile(tmp_path / result['archive']) as archive:
         for name in ['CONTRIBUTING.md', '.github/PULL_REQUEST_TEMPLATE.md',
                      '.github/workflows/ci.yml', '.github/workflows/release.yml',
-                     'docs/FILE_GUIDE.md', 'docs/ARCHITECTURE.md', 'start.bat', 'start-ui.bat', 'pyproject.toml',
-                     'bridge_x/ui/index.html', 'bridge_x/ui/style.css', 'bridge_x/ui/app.js',
+                     'docs/FILE_GUIDE.md', 'docs/ARCHITECTURE.md', 'start.bat', 'start-ui.bat', 'copy-key.bat', 'pyproject.toml',
+                     'bridge_x/ui/index.html', 'bridge_x/ui/style.css', 'bridge_x/ui/app.js', 'bridge_x/ui/locales.js',
                      'docs/assets/bridge-x-demo.gif', 'docs/assets/bridge-x-demo-ledger.gif',
                      '.github/ISSUE_TEMPLATE/bug_report.yml', 'tools/requirements-media.txt', '.molab.example']:
             assert archive.read(PREFIX + name) == (ROOT / name).read_bytes()

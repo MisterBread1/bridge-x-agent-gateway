@@ -2,7 +2,7 @@
 
 [README](../README.md) · [Architecture](ARCHITECTURE.md) · [Development](DEVELOPMENT.md) · [Testing](TESTING.md)
 
-This inventory covers **all 123 tracked files in this checkout**, including hidden configuration and GitHub workflows. It excludes ignored/private/generated working state. Every Python file was inspected; symbols/imports below reflect its implementation, including lazy imports. Empty package markers are listed explicitly.
+This inventory covers **all 128 tracked files in this checkout**, including hidden configuration and GitHub workflows. It excludes ignored/private/generated working state. Every Python file was inspected; symbols/imports below reflect its implementation, including lazy imports. Empty package markers are listed explicitly.
 
 ## Complete tracked tree
 
@@ -61,11 +61,13 @@ bridge-x-agent-gateway/
 │   ├── ui/
 │   │   ├── app.js
 │   │   ├── index.html
+│   │   ├── locales.js
 │   │   └── style.css
 │   └── user_state.py
 ├── bridge_x_test_runner/
 │   ├── __init__.py
 │   └── runner.py
+├── copy-key.bat
 ├── docs/
 │   ├── AGENT_CONTINUITY.md
 │   ├── ARCHITECTURE.md
@@ -101,6 +103,7 @@ bridge-x-agent-gateway/
 │   ├── test_audit_hardening.py
 │   ├── test_command_engine_128.py
 │   ├── test_continuity.py
+│   ├── test_copy_key.py
 │   ├── test_dispatch_root_cause_12103.py
 │   ├── test_doctor.py
 │   ├── test_execution_branches.py
@@ -131,6 +134,7 @@ bridge-x-agent-gateway/
 │   ├── test_sse.py
 │   ├── test_stress.py
 │   ├── test_tools.py
+│   ├── test_ui_languages.py
 │   └── test_windows_launcher.py
 └── tools/
     ├── __init__.py
@@ -138,6 +142,7 @@ bridge-x-agent-gateway/
     ├── build_release.py
     ├── configure.py
     ├── continuity_acceptance.py
+    ├── copy_key.py
     ├── native_css_acceptance.py
     ├── render_demo.py
     ├── requirements-media.txt
@@ -491,6 +496,8 @@ Category: **tests** for every row below. Ordinary users do **not** edit these fo
 | [`tests/test_node_title.py`](../tests/test_node_title.py) | Node REPL missing display-title regression across native/JSON/text and HTTP/SSE; executable data unchanged, constrained schemas and supplied title preserved. | `bridge_x.config`, `bridge_x.errors`, `bridge_x.gateway`, `bridge_x.molab_native`, `bridge_x.providers`, `bridge_x.schemas`, `bridge_x.tools` |
 | [`tests/test_long_session.py`](../tests/test_long_session.py) | Over-2-MB client history, oversized recent output/complete input, retained original goal/instructions/pending calls, HTTP/SSE context recovery, bounded attempts and no recovery after partial output. | `bridge_x.config`, `bridge_x.context`, `bridge_x.errors`, `bridge_x.gateway`, `bridge_x.providers`, `tests.conftest`, `tests.test_molab_integration` |
 | [`tests/test_windows_launcher.py`](../tests/test_windows_launcher.py) | Real Windows cmd/venv bootstrap without pip, first-run setup, ensurepip failure, GUI argument/application exit-code forwarding and preservation of private fixture state; no package-network access. | Package marker used by relative test imports |
+| [`tests/test_ui_languages.py`](../tests/test_ui_languages.py) | Complete English/Russian static labels, every operation/outcome/event, matching interpolation fields, preserved input controls, catalog load order and safe unauthenticated asset delivery. | `bridge_x.config`, `bridge_x.gateway`, `bridge_x.observability`, `bridge_x.tool_models` |
+| [`tests/test_copy_key.py`](../tests/test_copy_key.py) | Explicit clipboard invocation and failure handling without key disclosure; subprocess is mocked so the real clipboard is never read or written. | `tools` |
 
 ## Test support and manual tooling
 
@@ -600,6 +607,16 @@ Eight-turn native wire fixture; real temporary CSS edits, two empty-output fixed
 
 **Internal relationships:** `bridge_x.config`, `bridge_x.gateway`, `bridge_x.sse`, `tools.native_css_acceptance`.
 
+### `tools/copy_key.py`
+
+[Open source](../tools/copy_key.py) · Category: Tooling / explicit local action · User edit: **No**.
+
+Reads the same personal key as --ui and sends it only to the system clipboard on explicit invocation. Safe errors do not print the key; tests replace the clipboard process.
+
+**Public symbols:** `main`.
+
+**Internal relationships:** `bridge_x.errors`, `bridge_x.user_state`.
+
 ## Configuration, documentation, and release files
 
 | Exact path | Category and responsibility | Relationship / questions answered | Should an ordinary user edit it? |
@@ -648,6 +665,8 @@ Eight-turn native wire fixture; real temporary CSS edits, two empty-output fixed
 | [`docs/WORKBENCH.md`](../docs/WORKBENCH.md) | **Documentation.** Workbench connection, real recovery, upgrade, personal key, state paths and backup guide. | Operator instructions grounded in the current UI and CLI. | Users follow; maintainers update with behavior. |
 | [`docs/REVIEW_FIXES.md`](../docs/REVIEW_FIXES.md) | **Documentation.** Nine-defect repair matrix, extra Node/context regressions and validation scope. | Distinguishes deterministic fixtures from live model reasoning. | Users and reviewers read; maintainers append evidence. |
 | [`.molab.example`](../.molab.example) | **Configuration / public example.** Root-level placeholder-only Molab connection JSON, also attached as a separate checksummed release asset. | Preferred source for tools.configure; the ignored .molab_local.json is the active private copy. | Keep public placeholders; users edit only their private copy. |
+| [`bridge_x/ui/locales.js`](../bridge_x/ui/locales.js) | **Runtime UI / localization.** Complete English and Russian catalog for labels, operation/outcome states, safe diagnostic events, errors and setup instructions. | Loaded before app.js; UI language affects display only and is the sole browser-storage preference. | Maintainers edit with catalog and browser checks. |
+| [`copy-key.bat`](../copy-key.bat) | **Tooling / Windows launcher.** Operator-invoked helper to copy the personal local gateway key without printing it. | Uses the project Python or system launcher; no pip dependency or global Python change. | Users double-click; maintainers verify with mocked clipboard tests. |
 
 ## Runtime module dependencies
 

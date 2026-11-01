@@ -76,3 +76,16 @@ def test_unavailable_ensurepip_reports_pip_problem_without_claiming_python_is_mi
     assert "Install Python 3.11 or newer" not in result.stdout
     assert "LAUNCHER_ENTRY" not in result.stdout
     assert_private_state_untouched(folder)
+
+
+def test_copy_key_launcher_needs_no_pip_and_preserves_helper_failure(tmp_path):
+    folder = fixture_project(tmp_path)
+    shutil.copyfile(ROOT / "copy-key.bat", folder / "copy-key.bat")
+    venv.create(folder / ".venv", with_pip=False)
+    (folder / "tools").mkdir()
+    (folder / "tools/__init__.py").write_text("")
+    (folder / "tools/copy_key.py").write_text('print("COPY_KEY_FIXTURE"); raise SystemExit(7)\n')
+    result = launch(folder, "copy-key.bat")
+    assert result.returncode == 7 and "COPY_KEY_FIXTURE" in result.stdout
+    assert subprocess.run([str(folder / ".venv/Scripts/python.exe"), "-m", "pip", "--version"], capture_output=True).returncode != 0
+    assert_private_state_untouched(folder)

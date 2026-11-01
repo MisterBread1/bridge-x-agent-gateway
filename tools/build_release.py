@@ -12,7 +12,7 @@ def release_members(root):
     root = Path(root).resolve()
     names = ['README.md', 'CONTRIBUTING.md', 'CHANGELOG.md', 'RELEASE_NOTES.md',
              'SECURITY.md', '.gitignore', 'requirements.txt', 'requirements-dev.txt',
-             'pytest.ini', 'LOCAL_HTTP_ACCEPTANCE.py', 'LIVE_CHECK.py', 'start.bat', 'start-ui.bat',
+             'pytest.ini', 'LOCAL_HTTP_ACCEPTANCE.py', 'LIVE_CHECK.py', 'start.bat', 'start-ui.bat', 'copy-key.bat',
              '.molab.example', 'examples/.molab_local.example.json', 'tools/requirements-media.txt', 'pyproject.toml',
              'bridge_x/runtime-requirements.txt',
              'docs/assets/bridge-x-demo.gif', 'docs/assets/bridge-x-demo-ledger.gif']

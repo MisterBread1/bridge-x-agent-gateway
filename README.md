@@ -53,7 +53,11 @@ The gateway validates and delivers calls. The client executes tools. A proposed 
 
 ## Local workbench
 
-Double-click **`start-ui.bat`**, or run `python -m bridge_x --ui`. Open the generated `local.key` file in the login screen, then configure Molab under **Connection**. Existing private connection values are never sent back to the page. The workbench shows real client actions, outcome checks and sanitized diagnostics; it does not execute client tools. [Workbench and upgrade guide](docs/WORKBENCH.md).
+1. Extract the complete release ZIP and double-click **`start-ui.bat`**.
+2. Double-click **`copy-key.bat`** in the same folder. Paste the copied key into the workbench and choose **Open workbench**. You can also select the `local.key` file.
+3. Under **Connection**, save your Molab values if needed, then use the copy buttons for ZCode's Base URL, model and local key.
+
+Choose **ENG / RUS** at the top of the login screen or workbench. Language changes preserve the session and entered fields. Only the language preference is saved in browser storage; the local key stays in tab memory. Advanced key locations and environment overrides are under **Where can I find the key?**. [Workbench guide](docs/WORKBENCH.md).
 
 ## Quick Start
 

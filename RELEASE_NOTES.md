@@ -2,6 +2,8 @@
 
 This patch repairs Windows startup when Python is installed but the project's `.venv` lacks pip, and makes Molab setup easier to find.
 
+- **Simpler workbench:** ENG/RUS switching on login and in the panel, remembered language, two-step key guidance and copy buttons for ZCode settings. Language switching preserves entered values and the authenticated session; keys are never stored in browser storage.
+- **`copy-key.bat`:** explicitly copies the personal local key to the Windows clipboard without printing it, installing packages or changing global Python. `python -m bridge_x key` and choosing `local.key` remain available.
 - `start.bat` uses standard bundled `ensurepip` to restore missing pip before installing requirements. New environments use the same bootstrap path. Existing environments, private configuration and journals are retained; global Python is not changed.
 - Failures identify the actual stage: unavailable interpreter, invalid environment, failed pip bootstrap or failed dependency installation. Arguments and application exit codes pass through both Windows launchers.
 - **`.molab.example` is included in the ZIP root and attached as a separate release download.** It contains placeholder-only JSON. Run `python -m tools.configure` in the extracted folder to create `.molab_local.json` without overwriting an existing file; replace the placeholders in that private copy. The empty server token is valid when the runtime does not require one. See the README configuration table.
