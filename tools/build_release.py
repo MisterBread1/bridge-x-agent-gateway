@@ -13,7 +13,7 @@ def release_members(root):
     names = ['README.md', 'CONTRIBUTING.md', 'CHANGELOG.md', 'RELEASE_NOTES.md',
              'SECURITY.md', '.gitignore', 'requirements.txt', 'requirements-dev.txt',
              'pytest.ini', 'LOCAL_HTTP_ACCEPTANCE.py', 'LIVE_CHECK.py', 'start.bat', 'start-ui.bat',
-             'examples/.molab_local.example.json', 'tools/requirements-media.txt', 'pyproject.toml',
+             '.molab.example', 'examples/.molab_local.example.json', 'tools/requirements-media.txt', 'pyproject.toml',
              'bridge_x/runtime-requirements.txt',
              'docs/assets/bridge-x-demo.gif', 'docs/assets/bridge-x-demo-ledger.gif']
     for directory, suffixes in [('bridge_x', ('.py', '.html', '.js', '.css')), ('bridge_x_test_runner', ('.py',)),
@@ -58,7 +58,12 @@ def build_release(root, output_dir):
     target = output_dir / f'bridge-x-{__version__}-complete.zip'
     digest = hashlib.sha256(data).hexdigest()
     _write_immutable(target, data)
-    _write_immutable(output_dir / 'SHA256SUMS.txt', (digest + '  ' + target.name + '\n').encode('ascii'))
+    example = members['.molab.example']
+    # GitHub strips leading periods from uploaded asset names. Keep the exact
+    # dotfile inside the ZIP and checksum the standalone download by its name.
+    _write_immutable(output_dir / 'molab.example', example)
+    checksums = digest + '  ' + target.name + '\n' + hashlib.sha256(example).hexdigest() + '  molab.example\n'
+    _write_immutable(output_dir / 'SHA256SUMS.txt', checksums.encode('ascii'))
     return {'archive': target.name, 'members': len(members), 'sha256': digest}
 
 

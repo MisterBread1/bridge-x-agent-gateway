@@ -2,7 +2,7 @@
 
 [README](../README.md) · [Architecture](ARCHITECTURE.md) · [Development](DEVELOPMENT.md) · [Testing](TESTING.md)
 
-This inventory covers **all 121 tracked files in this checkout**, including hidden configuration and GitHub workflows. It excludes ignored/private/generated working state. Every Python file was inspected; symbols/imports below reflect its implementation, including lazy imports. Empty package markers are listed explicitly.
+This inventory covers **all 123 tracked files in this checkout**, including hidden configuration and GitHub workflows. It excludes ignored/private/generated working state. Every Python file was inspected; symbols/imports below reflect its implementation, including lazy imports. Empty package markers are listed explicitly.
 
 ## Complete tracked tree
 
@@ -18,6 +18,7 @@ bridge-x-agent-gateway/
 │       ├── ci.yml
 │       └── release.yml
 ├── .gitignore
+├── .molab.example
 ├── CHANGELOG.md
 ├── CONTRIBUTING.md
 ├── FILE_SHA256SUMS.txt
@@ -129,7 +130,8 @@ bridge-x-agent-gateway/
 │   ├── test_schema125.py
 │   ├── test_sse.py
 │   ├── test_stress.py
-│   └── test_tools.py
+│   ├── test_tools.py
+│   └── test_windows_launcher.py
 └── tools/
     ├── __init__.py
     ├── audit_release.py
@@ -488,6 +490,7 @@ Category: **tests** for every row below. Ordinary users do **not** edit these fo
 | [`tests/test_local_ui.py`](../tests/test_local_ui.py) | Real UI routes, authentication/Host/Origin/CSP, private configuration exclusion, explicit runtime checks, personal keys, consistent non-overwriting backups and instance ownership. | `bridge_x`, `bridge_x.config`, `bridge_x.errors`, `bridge_x.gateway`, `bridge_x.journal`, `bridge_x.paths`, `bridge_x.tool_models`, `bridge_x.user_state` |
 | [`tests/test_node_title.py`](../tests/test_node_title.py) | Node REPL missing display-title regression across native/JSON/text and HTTP/SSE; executable data unchanged, constrained schemas and supplied title preserved. | `bridge_x.config`, `bridge_x.errors`, `bridge_x.gateway`, `bridge_x.molab_native`, `bridge_x.providers`, `bridge_x.schemas`, `bridge_x.tools` |
 | [`tests/test_long_session.py`](../tests/test_long_session.py) | Over-2-MB client history, oversized recent output/complete input, retained original goal/instructions/pending calls, HTTP/SSE context recovery, bounded attempts and no recovery after partial output. | `bridge_x.config`, `bridge_x.context`, `bridge_x.errors`, `bridge_x.gateway`, `bridge_x.providers`, `tests.conftest`, `tests.test_molab_integration` |
+| [`tests/test_windows_launcher.py`](../tests/test_windows_launcher.py) | Real Windows cmd/venv bootstrap without pip, first-run setup, ensurepip failure, GUI argument/application exit-code forwarding and preservation of private fixture state; no package-network access. | Package marker used by relative test imports |
 
 ## Test support and manual tooling
 
@@ -618,7 +621,7 @@ Eight-turn native wire fixture; real temporary CSS edits, two empty-output fixed
 | [`requirements-dev.txt`](../requirements-dev.txt) | **Configuration / dependencies.** Includes requirements.txt plus pinned pytest, pytest-asyncio, Hypothesis, and test dependency closure. | Installs the complete offline regression environment. | Users install for testing; maintainers update and verify pins. |
 | [`pytest.ini`](../pytest.ini) | **Configuration / tests.** Limits test discovery to tests and sets function-scoped asyncio fixture loops. | Read by pytest; keeps manual root helpers out of default discovery. | Maintainers only when test organization changes. |
 | [`examples/.molab_local.example.json`](../examples/.molab_local.example.json) | **Configuration / example.** Placeholder-only notebook/runtime URL, session ID, optional server token, and explicit headers; all supported connection-file fields. | Source for tools.configure; read_molab_config validates the locally copied form. | Copy/create locally and edit ignored .molab_local.json; never put real values in this example. |
-| [`start.bat`](../start.bat) | **Tooling / Windows launcher.** Creates .venv using py -3 or python when missing, checks Python 3.11 and imports, installs runtime requirements if imports fail, forwards CLI arguments, and preserves exit status. | Delegates to bridge_x.__main__; does not validate pins in an existing importable environment or overwrite configuration. | Users run it; maintainers edit only with launcher checks. |
+| [`start.bat`](../start.bat) | **Tooling / Windows launcher.** Finds Python 3.11+, creates or reuses .venv, restores missing pip through ensurepip, installs missing runtime requirements, and forwards arguments/exit status. | Separates Python/environment/pip/dependency failures; does not delete environments or change global Python. | Users run it; maintainers verify through real Windows bootstrap regressions. |
 | [`README.md`](../README.md) | **Documentation.** Project entry point: purpose/features, actual startup/API example, client setup, tool/SSE/recovery overview, errors, structure, security, limits, and navigation. | Links the detailed operator, architecture, developer, test, and release guides. | Users read; maintainers update when public behavior changes. |
 | [`CONTRIBUTING.md`](../CONTRIBUTING.md) | **Documentation.** Explains safe reproducible reports, focused changes, required evidence, and offline/live test boundaries. | Entry to DEVELOPMENT, TESTING, SECURITY, and the PR template. | Contributors follow it; maintainers update process guidance. |
 | [`CHANGELOG.md`](../CHANGELOG.md) | **Documentation / history.** Reconstructs version-specific changes and distinguishes structured text intent, native frontend tools, later scopes/rate recovery, and reported test evidence. | Uses prior reports without republishing private artifacts; links current QA separately. | Maintainers append verified history; users do not edit for setup. |
@@ -644,6 +647,7 @@ Eight-turn native wire fixture; real temporary CSS edits, two empty-output fixed
 | [`start-ui.bat`](../start-ui.bat) | **Windows launcher.** Delegates to start.bat with --ui and preserves exit status. | Starts the actual local operator workbench. | Users run; maintainers update with startup checks. |
 | [`docs/WORKBENCH.md`](../docs/WORKBENCH.md) | **Documentation.** Workbench connection, real recovery, upgrade, personal key, state paths and backup guide. | Operator instructions grounded in the current UI and CLI. | Users follow; maintainers update with behavior. |
 | [`docs/REVIEW_FIXES.md`](../docs/REVIEW_FIXES.md) | **Documentation.** Nine-defect repair matrix, extra Node/context regressions and validation scope. | Distinguishes deterministic fixtures from live model reasoning. | Users and reviewers read; maintainers append evidence. |
+| [`.molab.example`](../.molab.example) | **Configuration / public example.** Root-level placeholder-only Molab connection JSON, also attached as a separate checksummed release asset. | Preferred source for tools.configure; the ignored .molab_local.json is the active private copy. | Keep public placeholders; users edit only their private copy. |
 
 ## Runtime module dependencies
 

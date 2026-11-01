@@ -1,5 +1,11 @@
 # Changelog
 
+## 12.13.1 — Stable
+
+- Repair Windows startup with an existing Python environment missing pip: bootstrap through bundled ensurepip, preserve arguments/exit status and distinguish interpreter, environment, pip and dependency failures. No global Python changes or automatic environment deletion.
+- Include `.molab.example` in the ZIP root and as a separate release asset, covered by SHA256SUMS; document each field and creating the private `.molab_local.json` without overwriting it.
+- Add real offline cmd/venv regressions for missing pip, first startup, failed ensurepip and GUI argument/exit-code forwarding. Existing 12.13.0 assets remain unchanged.
+
 ## 12.13.0 — Stable
 
 - Add an authenticated local operator workbench: real operations, uncertain-outcome checks, Molab setup, explicit runtime checks and sanitized reports. Start with `start-ui.bat` or `python -m bridge_x --ui`.

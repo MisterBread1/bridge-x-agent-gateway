@@ -19,7 +19,7 @@ def test_complete_archive_has_stable_prefix_docs_and_valid_checksums(tmp_path):
                      'docs/FILE_GUIDE.md', 'docs/ARCHITECTURE.md', 'start.bat', 'start-ui.bat', 'pyproject.toml',
                      'bridge_x/ui/index.html', 'bridge_x/ui/style.css', 'bridge_x/ui/app.js',
                      'docs/assets/bridge-x-demo.gif', 'docs/assets/bridge-x-demo-ledger.gif',
-                     '.github/ISSUE_TEMPLATE/bug_report.yml', 'tools/requirements-media.txt']:
+                     '.github/ISSUE_TEMPLATE/bug_report.yml', 'tools/requirements-media.txt', '.molab.example']:
             assert archive.read(PREFIX + name) == (ROOT / name).read_bytes()
         for line in archive.read(PREFIX + 'FILE_SHA256SUMS.txt').decode().splitlines():
             digest, name = line.split('  ', 1)
@@ -28,6 +28,10 @@ def test_complete_archive_has_stable_prefix_docs_and_valid_checksums(tmp_path):
         assert PREFIX + '.molab_local.json' not in archive.namelist()
         assert all(name.startswith(PREFIX) for name in archive.namelist())
     assert (ROOT / 'requirements.txt').read_text(encoding='utf-8') == (ROOT / 'bridge_x/runtime-requirements.txt').read_text(encoding='utf-8')
+    assert (tmp_path / 'molab.example').read_bytes() == (ROOT / 'examples/.molab_local.example.json').read_bytes()
+    for line in (tmp_path / 'SHA256SUMS.txt').read_text().splitlines():
+        digest, name = line.split('  ', 1)
+        assert hashlib.sha256((tmp_path / name).read_bytes()).hexdigest() == digest
 
 
 def test_build_is_repeatable_and_never_changes_checkout_manifest(tmp_path):

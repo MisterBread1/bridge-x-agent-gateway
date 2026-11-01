@@ -12,7 +12,7 @@ Bridge X translates provider responses into Chat Completions messages, validates
 
 [Alternative: execution ledger](docs/assets/bridge-x-demo-ledger.gif) · [Demo scope and creation](docs/DEMO.md)
 
-**Stable version: 12.13.0 · Python: 3.11+**
+**Stable version: 12.13.1 · Python: 3.11+**
 
 This release adds a local operator workbench, long-session context recovery, stronger receipt reconciliation and offline diagnostics. The [investigation](docs/AGENT_CONTINUITY.md) distinguishes verified protocol repairs from external model behavior.
 
@@ -73,7 +73,7 @@ The **fake** provider is an offline protocol simulator; it requires no account o
 Invoke-RestMethod http://127.0.0.1:18787/health
 ```
 
-Expect `status: ok`, version `12.13.0`, and provider `fake`. The Python CLI never installs software; `start.bat` runs the pinned requirements installer when its dependency import check fails. An existing environment that passes that check is reused without verifying every package version.
+Expect `status: ok`, version `12.13.1`, and provider `fake`. The Python CLI never installs software; `start.bat` runs the pinned requirements installer when its dependency import check fails. An existing environment that passes that check is reused without verifying every package version.
 
 ### Send a local API request
 
@@ -94,7 +94,7 @@ This returns a deterministic offline completion. If `BRIDGEX_LOCAL_KEY` is alrea
 
 ### Connect your own Molab runtime
 
-Create the local template, then edit `.molab_local.json` using values for a runtime you are authorized to use. Template creation never overwrites an existing file. Check syntax without contacting Molab:
+The release includes [`.molab.example`](.molab.example) in the ZIP root and as a separate downloadable asset. It contains placeholder-only JSON. Run the command below to create `.molab_local.json`, then edit that private copy using values for a runtime you are authorized to use. Template creation never overwrites an existing file. Check syntax without contacting Molab:
 
 ```powershell
 .\.venv\Scripts\python.exe -m tools.configure
@@ -112,7 +112,7 @@ Enter the same key in your client locally. This does not create or replace a pro
 
 ## Configuration
 
-The complete supported file structure is in [`examples/.molab_local.example.json`](examples/.molab_local.example.json).
+The complete supported file structure is in [`.molab.example`](.molab.example). The older [`examples/.molab_local.example.json`](examples/.molab_local.example.json) path is retained with the same template. Keep `YOUR_...` placeholders in public examples; enter actual values only in the ignored `.molab_local.json`.
 
 | File field | Meaning |
 |---|---|
@@ -122,7 +122,20 @@ The complete supported file structure is in [`examples/.molab_local.example.json
 | `http_headers` | Optional explicit headers for this runtime; unsafe/reserved headers are rejected. |
 | `notebook_url` | Optional reference, not a replacement for the runtime endpoint. |
 
-Configuration is read from the project root or `BRIDGEX_MOLAB_CONFIG`. The file and any local environment settings must stay private. `.env` files are **not** loaded automatically. All supported environment variables, defaults, limits, and API endpoints are documented in [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md). Python `Settings()` has different compatibility defaults from `Settings.from_env()`; the CLI uses the latter.
+The runtime reads `.molab_local.json`, not `.molab.example`. Explicit `BRIDGEX_MOLAB_CONFIG` takes precedence; otherwise user data and legacy project discovery apply ([state paths](docs/WORKBENCH.md)). The file and any local environment settings must stay private. `.env` files are **not** loaded automatically. All supported environment variables, defaults, limits, and API endpoints are documented in [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md). Python `Settings()` has different compatibility defaults from `Settings.from_env()`; the CLI uses the latter.
+
+## Windows startup troubleshooting
+
+`No module named pip` means Python started successfully but its virtual environment lacks pip. Updated `start.bat` restores pip with the standard bundled `ensurepip` before installing requirements; it does not download a bootstrap script or change global Python. Existing environments and private files are retained.
+
+If `PIP_BOOTSTRAP_FAILED` appears, check that the base Python installation includes `ensurepip`. To repair only the extracted project's environment manually:
+
+```powershell
+.\.venv\Scripts\python.exe -m ensurepip --upgrade --default-pip
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+```
+
+`DEPENDENCY_INSTALL_FAILED` means pip works but package installation failed; inspect its preceding message and package-download access. `VENV_INVALID` identifies an unusable/old project environment, while `PYTHON_UNAVAILABLE` means neither launcher found a supported interpreter. Preserve your Molab configuration and journal when repairing `.venv`.
 
 ## Connecting a Compatible Client
 
@@ -236,3 +249,5 @@ Keep the listener on loopback, use a unique local key, and retain client-side to
 ## Changelog
 
 See [`CHANGELOG.md`](CHANGELOG.md) for the history supported by the project's existing reports.
+
+The ZIP keeps the exact `.molab.example` filename. The separate GitHub asset is labeled `.molab.example` and downloads as `molab.example`, because GitHub strips leading periods from asset names. Rename that standalone copy to `.molab_local.json` for private setup, or use the complete ZIP and `python -m tools.configure`.
